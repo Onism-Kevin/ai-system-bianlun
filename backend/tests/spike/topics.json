@@ -1,0 +1,22 @@
+[
+  {"id": 1, "topic": "大学生使用 AI 辅助写作业是否应被允许", "category": "教育", "difficulty": "简单"},
+  {"id": 2, "topic": "城市应否全面禁止电动自行车进楼入户", "category": "公共政策", "difficulty": "简单"},
+  {"id": 3, "topic": "社交媒体平台是否应为虚假信息承担连带责任", "category": "科技伦理", "difficulty": "中等"},
+  {"id": 4, "topic": "转基因食品的安全性标识是否应强制公开", "category": "社会文化", "difficulty": "简单"},
+  {"id": 5, "topic": "远程办公是否会削弱新人的职业成长", "category": "社会文化", "difficulty": "简单"},
+  {"id": 6, "topic": "高校是否应取消本科毕业论文硬性要求", "category": "教育", "difficulty": "中等"},
+  {"id": 7, "topic": "细胞基因编辑研究的边界应如何界定", "category": "科技伦理", "difficulty": "困难"},
+  {"id": 8, "topic": "博物馆是否应归还殖民时期掠夺的文物", "category": "学术争议", "difficulty": "困难"},
+  {"id": 9, "topic": "全民基本收入是否应试点推行", "category": "公共政策", "difficulty": "中等"},
+  {"id": 10, "topic": "历史教科书应以国家叙事还是多元叙事为主", "category": "学术争议", "difficulty": "困难"},
+  {"id": 11, "topic": "动物实验在化妆品研发中是否应被完全禁止", "category": "科技伦理", "difficulty": "中等"},
+  {"id": 12, "topic": "高考是否应增加综合素质评价权重", "category": "教育", "difficulty": "中等"},
+  {"id": 13, "topic": "城市噪音管控标准是否应区分工作日与周末", "category": "公共政策", "difficulty": "简单"},
+  {"id": 14, "topic": "网络暴力的施暴者是否应被永久留档", "category": "社会文化", "difficulty": "中等"},
+  {"id": 15, "topic": "人工智能生成内容是否应强制标注来源", "category": "科技伦理", "difficulty": "中等"},
+  {"id": 16, "topic": "学术论文的同行评审是否应改为公开评审", "category": "学术争议", "difficulty": "困难"},
+  {"id": 17, "topic": "中学是否应开设人工智能必修课", "category": "教育", "difficulty": "中等"},
+  {"id": 18, "topic": "平台算法推荐是否应向用户公开权重", "category": "公共政策", "difficulty": "困难"},
+  {"id": 19, "topic": "传统节日的商业化是否损害其文化价值", "category": "学术争议", "difficulty": "困难"},
+  {"id": 20, "topic": "殡葬改革中的生态葬是否应行政推动", "category": "社会文化", "difficulty": "简单"}
+]

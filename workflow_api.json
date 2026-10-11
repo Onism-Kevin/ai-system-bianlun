@@ -1,0 +1,141 @@
+{
+  "4": {
+    "inputs": {
+      "vae_name": "ae.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "加载VAE"
+    }
+  },
+  "5": {
+    "inputs": {
+      "system_prompt": "superior",
+      "user_prompt": "",
+      "clip": [
+        "15",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncodeLumina2",
+    "_meta": {
+      "title": "CLIP文本编码（Lumina2）"
+    }
+  },
+  "6": {
+    "inputs": {
+      "system_prompt": "superior",
+      "user_prompt": "",
+      "clip": [
+        "15",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncodeLumina2",
+    "_meta": {
+      "title": "CLIP文本编码（Lumina2）"
+    }
+  },
+  "7": {
+    "inputs": {
+      "shift": 1,
+      "model": [
+        "14",
+        0
+      ]
+    },
+    "class_type": "ModelSamplingAuraFlow",
+    "_meta": {
+      "title": "采样算法（AuraFlow）"
+    }
+  },
+  "8": {
+    "inputs": {
+      "seed": 129627553425403,
+      "steps": 3,
+      "cfg": 1,
+      "sampler_name": "res_multistep",
+      "scheduler": "simple",
+      "denoise": 1,
+      "model": [
+        "7",
+        0
+      ],
+      "positive": [
+        "5",
+        0
+      ],
+      "negative": [
+        "6",
+        0
+      ],
+      "latent_image": [
+        "10",
+        0
+      ]
+    },
+    "class_type": "KSampler",
+    "_meta": {
+      "title": "K采样器"
+    }
+  },
+  "10": {
+    "inputs": {
+      "width": 256,
+      "height": 256,
+      "batch_size": 1
+    },
+    "class_type": "EmptySD3LatentImage",
+    "_meta": {
+      "title": "空Latent图像（SD3）"
+    }
+  },
+  "11": {
+    "inputs": {
+      "samples": [
+        "8",
+        0
+      ],
+      "vae": [
+        "4",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE解码"
+    }
+  },
+  "13": {
+    "inputs": {
+      "filename_prefix": "ComfyUI",
+      "images": [
+        "11",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "保存图像"
+    }
+  },
+  "14": {
+    "inputs": {
+      "unet_name": "z_image_turbo-Q4_K_M.gguf"
+    },
+    "class_type": "UnetLoaderGGUF",
+    "_meta": {
+      "title": "Unet Loader (GGUF)"
+    }
+  },
+  "15": {
+    "inputs": {
+      "clip_name": "Qwen3-4B-Q4_K_M.gguf",
+      "type": "stable_diffusion"
+    },
+    "class_type": "CLIPLoaderGGUF",
+    "_meta": {
+      "title": "CLIPLoader (GGUF)"
+    }
+  }
+}
