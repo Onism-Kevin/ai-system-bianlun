@@ -70,3 +70,14 @@
   `DataError`（→用户输入非法值/服务端枚举不一致，4xx 或服务端 bug 5xx）与
   `IntegrityError`（唯一键/外键约束，区分 1062 重复提交与 1451/1452 引用错误）。
 - **依据来源**：pytest 全量回归中 4 个失败用例定位（test_message.py 两处枚举拒绝用例）。
+
+## E-7 updated_at 由应用层 onupdate 维护，DB 层无 ON UPDATE CURRENT_TIMESTAMP
+
+- **决策（用户，2026-10-12，S1-5 migration 审阅）**：所有表的 `updated_at`
+  只由应用层 SQLAlchemy `onupdate` 维护，DB 层**不加**
+  `ON UPDATE CURRENT_TIMESTAMP`。
+- **理由**：全系统走 ORM，单一来源；Alembic 对比干净（无方言子句噪声）；
+  避免 DB 层在绕过 ORM 的写入时静默改值。
+- **约束（未来开发必须遵守）**：绕过 ORM 的 UPDATE（原生 SQL、运维脚本、
+  导入工具）**不会刷新** `updated_at`。未来若出现此类写路径，
+  需要补 `server_onupdate` + 手改 migration。
