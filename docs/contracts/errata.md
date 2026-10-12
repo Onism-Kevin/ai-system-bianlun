@@ -35,6 +35,9 @@
 - **原文问题**：契约 5.2 定义 `paused_truncated`，5.4 重连示例写 `status='generating'`，不统一。
 - **取代为**：三值枚举 `streaming`（生成中）/ `complete`（正常完成）/
   `paused_truncated`（暂停截断）；5.4 示例中的 `generating` 一律读作 `streaming`。
+- **适用范围（2026-10-12 补）**：本勘误**仅适用于 `messages.status`**；
+  `sessions.status` 保留五态（waiting/generating/paused/finished/failed，见 S2-2），
+  其中的 generating 是会话层"模型生成中"状态，与本勘误无关，不改。
 
 ## E-4 计划书 v1.0 验收句勘误（已就地更新计划书）
 
