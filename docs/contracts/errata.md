@@ -106,3 +106,15 @@
   （`WHERE session_id=? AND seq>?`），同一消息的所有 delta 共享同一 seq。
   以 sse_events.md §3 为准。
 - **日期/拍板人**：用户，2026-10-12（S1-6 草案审阅）。
+
+## E-10 计划书 S2-1 验收句的凭据载体：Authorization 头 → Cookie（取代）
+
+- **原文问题**：S2-1 验收句 `curl -H "Authorization: Bearer $T" $API/me → 200`
+  假定 JWT 经 Authorization 头携带，与 S1-8 定稿的鉴权方案 A
+  （JWT 存 httpOnly Cookie，docs/contracts/permissions.md §6.2）冲突。
+- **取代为**：S2-1 验收三连（注册 → 登录 → me）改用 cookie jar 携带：
+  登录响应 `set_cookie`（`curl -c cookie.txt` 存），后续请求 `curl -b cookie.txt`
+  自动携带；错密码 → 401 语义不变。验收命令的三连语义与期望结果不变。
+- **连带**：S1-7 API 契约不引用 Authorization 头；sse_events.md §9 已回填
+  方案 A；S2-F1 axios 同源零配置（跨源兜底 withCredentials）。
+- **日期/拍板人**：用户，2026-10-12（S1-8 审阅）。

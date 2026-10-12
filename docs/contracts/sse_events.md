@@ -227,11 +227,13 @@ Spike 报告（docs/spike_report.md:83）建议报告阶段复用本契约逐节
 2. **收到 `done`** → 主动 close()，不重连（唯一终态信号；fatal error 后服务端必发 done，客户端终态逻辑只挂 done，error 事件仅用于即时错误展示）。
 3. 重连一律经 useSSE.ts 封装（Train.vue 不裸 new EventSource）；`Last-Event-ID` 由 EventSource 原生携带，`after_seq` 仅首连附带。
 
-## 9. 鉴权接入位（依赖 S1-8）
+## 9. 鉴权接入位（S1-8 已回填：方案 A）
 
-EventSource 无法携带 `Authorization` 头。S1-8 定稿鉴权方式时必须二选一并回填本契约：
-**A. Cookie 会话**（推荐，前端零改动）；**B. `?token=` 查询参数**（本契约已在 §2 预留 query 参数位）。
-本契约不对鉴权做任何假设，仅约束：鉴权失败发生在建流前（HTTP 403），不产生 error 事件。
+**方案 A：Cookie 会话（S1-8 定稿，2026-10-12）**——JWT 存 **httpOnly Cookie**（`set_cookie`，SameSite=Lax），REST 与 SSE 同一凭据；同源（vite 代理）下 EventSource 自动携带 Cookie，无需 query token。
+
+- 鉴权失败发生在建流前（HTTP 403），不产生 error 事件（约束不变）。
+- 方案 B（`?token=` 查询参数，§2 预留位保留但不启用）已否决，对比见 permissions.md §6.1。
+- 细节与 CORS/CSRF 处置见 permissions.md §6.3；S1-7 API 契约不引用 Authorization 头（errata E-10）。
 
 ## 10. 与数据库状态机的一致性约束
 
