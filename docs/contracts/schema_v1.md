@@ -22,7 +22,7 @@
 | 字符集/排序 | utf8mb4 / utf8mb4_unicode_ci | S0-9 已定，三库一致 |
 | 删除语义 | 不用 `deleted_at` 软删；账号用 `is_active`、课程用 `is_archived` | 骨架已有；减少状态维度 |
 | 角色存储 | `ENUM`（非 lookup 表） | 值少且稳定；方案未要求动态角色 |
-| 外键命名 | `fk_<表名>_<列名>` | 索引：FK 列建索引，UNIQUE 列天然有索引 |
+| 约束/索引命名 | `pk_<表名>` / `uq_<表名>_<列名>` / `ix_<表名>_<列名>` / `fk_<表名>_<列名>_<被引用表>` / `ck_<表名>_<约束名>` —— **一律表名在前** | 与 `backend/app/models/base.py` 的 `NAMING_CONVENTION` 完全一致（实测产物如 `users.uq_users_username`）；复合唯一键为 `uq_<表名>_<列1>_<列2>`（如 `uq_user_roles_user_id_role`）；FK 列建索引，UNIQUE 列天然有索引 |
 
 ## 1. users
 

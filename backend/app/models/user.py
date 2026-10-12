@@ -26,6 +26,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app.models.base import Base
 
 # 复用同一 Enum 实例，保证 ORM 与后续 Alembic 迁移生成同一个 MySQL ENUM 类型
+# 'admin' 为契约 5.3 预留值：纯占位，首版不实现任何管理员功能（无 API、无界面）
 USER_ROLE_ENUM = Enum("student", "teacher", "admin", name="user_role")
 
 
