@@ -1,7 +1,8 @@
 # 用户与课程域数据模型 v1 — 草案（待审阅）
 
-> 状态：**DRAFT，未定稿**。本文档是 S1-2（ORM：users / user_roles / courses / course_members）的前置契约；
-> 你勾选定稿前不写任何 ORM 代码。
+> 状态：**DRAFT（字段已按用户勾选定稿，待 S1-2 CRUD 冒烟通过后转 FINAL）**。
+> 勾选结论（2026-10-12）：加 display_name / is_active / 'admin' 枚举 / user_roles.created_at / courses.term；
+> 不加 student_no / email / last_login_at。
 >
 > 依据来源：
 > - 《思辨工坊执行计划书 v1.1》任务卡：S2-1（register/login/me + JWT + bcrypt）、S3-1（角色管理 API）、S3-2（课程创建 + 成员 API，建课→学生加入闭环）、S3-3（任务创建 + 加入码 + join API，错码 403）
@@ -30,18 +31,18 @@
 | 字段 | 类型 | 约束 | 依据 |
 |---|---|---|---|
 | `id` | BIGINT | PK AUTO_INCREMENT | 全局约定；契约 5.3 跨表引用 |
-| `username` | VARCHAR(50) | NOT NULL, UNIQUE | S2-1 register/login 的登录唯一标识 |
+| `username` | VARCHAR(50) | NOT NULL, UNIQUE | S2-1 register/login 的登录唯一标识。**规则说明**：username 的字符集/长度/允许字符规则由 S2-1（register API）定义，本表 VARCHAR(50) 只提供存储上限 |
 | `password_hash` | VARCHAR(255) | NOT NULL | S2-1 bcrypt（bcrypt 输出 60 字符，255 留算法升级余量） |
 | `created_at` | DATETIME | NOT NULL DEFAULT CURRENT_TIMESTAMP | 你的骨架；审计基础列 |
 | `updated_at` | DATETIME | NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP | 同上 |
 
-### 1.2 行业惯例补充（待勾选）
+### 1.2 行业惯例补充（已勾选定稿 2026-10-12）
 
-- [ ] `display_name` VARCHAR(50) NULL — 界面显示名（教师真名/学生昵称），登录仍用 username。你的骨架含此列。**建议：加**（师生界面都需要称呼，成本低）
-- [ ] `is_active` TINYINT(1) NOT NULL DEFAULT 1 — 账号停用（毕业/离校），停用即拒登录。你的骨架含此列。**建议：加**（删账号会连带删历史引用，停用更安全）
-- [ ] `student_no` VARCHAR(30) NULL — 学号。方案与契约均无依据。**建议：首版不加**（课程侧对账走 course_members 即可）
-- [ ] `email` VARCHAR(128) NULL — 邮箱。方案无找回密码流程。**建议：不加**（无消费场景）
-- [ ] `last_login_at` DATETIME NULL — **建议：不加**（登录审计由 audit_events 覆盖，S1-4 范围）
+- [x] `display_name` VARCHAR(50) NULL — 界面显示名（教师真名/学生昵称），登录仍用 username。**已采纳：加**
+- [x] `is_active` TINYINT(1) NOT NULL DEFAULT 1 — 账号停用（毕业/离校），停用即拒登录。**已采纳：加**
+- [ ] ~~`student_no`~~ — **已否决：不加**
+- [ ] ~~`email`~~ — **已否决：不加**
+- [ ] ~~`last_login_at`~~ — **已否决：不加**
 
 ## 2. user_roles
 
@@ -51,13 +52,13 @@
 |---|---|---|---|
 | `id` | BIGINT | PK AUTO_INCREMENT | 你的骨架 |
 | `user_id` | BIGINT | NOT NULL, FK→users.id ON DELETE CASCADE | 你的骨架；S3-1 角色授予 |
-| `role` | ENUM('student','teacher') | NOT NULL | 你的骨架；方案第 8 节第 1 条（同账号可多角色）；S3-1 |
+| `role` | ENUM('student','teacher','admin') | NOT NULL | 你的骨架；方案第 8 节第 1 条（同账号可多角色）；S3-1；契约 5.3 "教师/管理员"。**'admin' 纯预留，不代表首版实现管理员功能** |
 | — | — | UNIQUE(user_id, role) | 你的骨架；方案第 8 节第 1 条（防止同角色重复授予） |
 
-### 2.2 行业惯例补充（待勾选）
+### 2.2 行业惯例补充（已勾选定稿 2026-10-12）
 
-- [ ] `role` 枚举增加 `'admin'` — v1.1 契约 5.3 明确出现"教师/管理员一律 404"字样，即契约层承认管理员存在。**建议：加**（ENUM 增值只需一次 ALTER，先占位避免后续迁移）
-- [ ] `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP — 角色授予时间审计。**建议：加**
+- [x] `role` 枚举增加 `'admin'` — **已采纳**（纯预留占位）
+- [x] `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP — 角色授予时间审计。**已采纳：加**
 
 ## 3. courses
 
@@ -74,11 +75,11 @@
 | `updated_at` | DATETIME | NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP | 你的骨架 |
 | `is_archived` | TINYINT(1) | NOT NULL DEFAULT 0 | 你的骨架（学期结束归档） |
 
-### 3.2 行业惯例补充（待勾选）
+### 3.2 行业惯例补充（已勾选定稿 2026-10-12）
 
-- [ ] `term` VARCHAR(20) NULL — 学年学期标签（如 "2026秋"）。教学管理常用，方案无依据。**建议：加 NULL 列**（低成本预留，教师端列表按学期分组可直接用）
-- [ ] 多教师协同（如 course_teachers 关联表）— 方案与骨架均为单 teacher_id。**建议：首版不加**（不发明复杂关系）
-- [ ] `invite_code` 生成规则：6~8 位 `A-Z0-9`，剔除易混淆字符 `I/O/0/1` — 非 DB 字段问题，属 S3-3 实现约束。**建议：采纳**（写入 S3-3 任务说明）
+- [x] `term` VARCHAR(20) NULL — 学年学期标签（如 "2026秋"）。**已采纳：加**（NULL 列预留）
+- [ ] 多教师协同（如 course_teachers 关联表）— **已否决：不加**（不发明复杂关系）
+- [x] `invite_code` 生成规则：6~8 位 `A-Z0-9`，剔除易混淆字符 `I/O/0/1` — 非 DB 字段问题，属 S3-3 实现约束。**已采纳**（写入 S3-3 任务说明）
 
 ## 4. course_members
 
@@ -92,10 +93,10 @@
 | `joined_at` | DATETIME | NOT NULL DEFAULT CURRENT_TIMESTAMP | 你的骨架 |
 | — | — | UNIQUE(course_id, user_id) | 你的骨架（防重复加入） |
 
-### 4.2 行业惯例补充（待勾选）
+### 4.2 行业惯例补充（已勾选定稿 2026-10-12）
 
-- [ ] 退课语义 `left_at` DATETIME NULL — 方案无退课流程。**建议：不加**（需要时一行 ALTER）
-- [ ] 成员表是否也存教师行 — **建议：不存**。教师身份一律查 `courses.teacher_id`，成员表只有学生；否则权限判断出现两个真相来源
+- [ ] ~~`left_at` 退课语义~~ — **已否决：不加**（方案无退课流程，需要时一行 ALTER）
+- [x] 成员表不存教师行 — **已采纳**。教师身份一律查 `courses.teacher_id`，避免权限判断出现两个真相来源
 
 ## 5. 删除语义与关系（草案定稿即生效）
 
@@ -108,6 +109,10 @@ courses 1──* course_members  （删课连带清成员）ON DELETE CASCADE
 
 - `courses.teacher_id` 用 RESTRICT：防止删教师账号后孤儿课无人管理；正确流程是先归档/转移课程再删账号
 - 唯一键汇总：`users.username`、`user_roles(user_id, role)`、`courses.invite_code`、`course_members(course_id, user_id)`
+
+**应用层约束（DB 层不做）**：
+
+- 创建课程时，应用层必须校验 `courses.teacher_id` 对应用户拥有 `teacher` 角色；DB 层不做此约束（MySQL 不支持跨表 CHECK）。该约束由 S3-2（建课 API）落地。
 
 ## 6. 范围外与勘误
 
