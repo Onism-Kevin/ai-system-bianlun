@@ -21,7 +21,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.models.base import Base
+from app.models.base import MYSQL_TABLE_ARGS, Base
 
 REVISION_STATUS_ENUM = Enum("draft", "final", name="revision_status")
 
@@ -30,6 +30,7 @@ class Revision(Base):
     __tablename__ = "revisions"
     __table_args__ = (
         UniqueConstraint("session_id", "version", name="uq_revisions_session_id_version"),
+        MYSQL_TABLE_ARGS,
     )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)

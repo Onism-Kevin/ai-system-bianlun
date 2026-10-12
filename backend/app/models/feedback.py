@@ -19,7 +19,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.models.base import Base
+from app.models.base import MYSQL_TABLE_ARGS, Base
 
 
 class FeedbackForm(Base):
@@ -28,6 +28,7 @@ class FeedbackForm(Base):
         UniqueConstraint(
             "task_id", "student_id", name="uq_feedback_forms_task_id_student_id"
         ),
+        MYSQL_TABLE_ARGS,
     )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)

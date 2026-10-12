@@ -24,7 +24,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.models.base import Base
+from app.models.base import MYSQL_TABLE_ARGS, Base
 
 # 复用同一 Enum 实例，保证 ORM 与后续 Alembic 迁移生成同一个 MySQL ENUM 类型
 MESSAGE_ROLE_ENUM = Enum("user", "assistant", "system", name="message_role")
@@ -38,6 +38,7 @@ class Message(Base):
     __table_args__ = (
         # 方案 A 下唯一性已蕴含（seq 全局唯一），保留作回放查询覆盖索引（契约 5.1）
         UniqueConstraint("session_id", "seq", name="uq_messages_session_id_seq"),
+        MYSQL_TABLE_ARGS,
     )
 
     # 方案 A：seq 即主键（errata E-1），对 API 即 message id

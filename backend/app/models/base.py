@@ -17,8 +17,13 @@ NAMING_CONVENTION = {
     "pk": "pk_%(table_name)s",
 }
 
+# 每张表显式带字符集/排序规则（S1-5 验收项），不依赖 MySQL 库默认；
+# 自带 __table_args__ 元组的表需手动把本字典追加到元组末尾。
+MYSQL_TABLE_ARGS = {"mysql_charset": "utf8mb4", "mysql_collate": "utf8mb4_unicode_ci"}
+
 
 class Base(DeclarativeBase):
     """全部 ORM 模型的声明基类（携带统一命名约定的 MetaData）。"""
 
     metadata = MetaData(naming_convention=NAMING_CONVENTION)
+    __table_args__ = MYSQL_TABLE_ARGS

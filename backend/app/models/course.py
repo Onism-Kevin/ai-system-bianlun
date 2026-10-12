@@ -25,7 +25,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.models.base import Base
+from app.models.base import MYSQL_TABLE_ARGS, Base
 
 
 class Course(Base):
@@ -75,4 +75,5 @@ class CourseMember(Base):
 
     __table_args__ = (
         UniqueConstraint("course_id", "user_id", name="uq_course_members_course_id_user_id"),
+        MYSQL_TABLE_ARGS,
     )

@@ -24,7 +24,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.models.base import Base
+from app.models.base import MYSQL_TABLE_ARGS, Base
 
 
 class Task(Base):
@@ -80,4 +80,5 @@ class TaskSubmission(Base):
     __table_args__ = (
         UniqueConstraint("task_id", "session_id", name="uq_task_submissions_task_id_session_id"),
         UniqueConstraint("task_id", "student_id", name="uq_task_submissions_task_id_student_id"),
+        MYSQL_TABLE_ARGS,
     )

@@ -23,7 +23,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.models.base import Base
+from app.models.base import MYSQL_TABLE_ARGS, Base
 
 # 复用同一 Enum 实例，保证 ORM 与后续 Alembic 迁移生成同一个 MySQL ENUM 类型
 # 'admin' 为契约 5.3 预留值：纯占位，首版不实现任何管理员功能（无 API、无界面）
@@ -68,4 +68,5 @@ class UserRole(Base):
     __table_args__ = (
         # 防同一角色重复授予；多角色本身不受限（方案第 8 节第 1 条）
         UniqueConstraint("user_id", "role", name="uq_user_roles_user_id_role"),
+        MYSQL_TABLE_ARGS,
     )
