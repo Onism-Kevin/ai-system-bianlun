@@ -1,4 +1,4 @@
-param(
+﻿param(
   [string]$Database = "sfb_test",
   [string]$OutDir   = ""
 )

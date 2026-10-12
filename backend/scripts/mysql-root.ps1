@@ -1,4 +1,4 @@
-# mysql-root.ps1 — 带凭据的 mysql.exe 包装器
+﻿# mysql-root.ps1 — 带凭据的 mysql.exe 包装器
 # 用途：my.ini 的 [client] 段没有 user/password，Windows 上 mysql.exe 不带 -u 时
 #       会以 'ODBC' 用户连接并报 ERROR 1045。本脚本从 backend\.env 的 DATABASE_URL
 #       解析 root 密码后透传所有参数给 mysql.exe，无需在命令行手输密码。
