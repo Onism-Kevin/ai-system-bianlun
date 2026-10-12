@@ -80,8 +80,15 @@ powershell -ExecutionPolicy Bypass -File backend\scripts\restore.ps1 -DumpFile "
 
 以上链路已于 2026-10-12 在 `sfb_test` 完成一次真实演练：备份前 5 行 → 删除 → 恢复 → 恢复后 5 行，判据一致（见 `docs/backup_drill.md`）。
 
-## 6. 已知限制与待补（S1+）
+## 6. 已知限制与开发注意（S1+）
 
+- **MySQL 类型同义词：`NUMERIC ≡ DECIMAL`、`BOOL ≡ BOOLEAN ≡ TINYINT(1)`、`INT ≡ INTEGER`**。SQLAlchemy ORM 的 `Numeric(5,2)` 用 MySQL 方言编译成 DDL 文本是 `NUMERIC(5,2)`，但 migration 建出来的列反射回来是 `DECIMAL(5,2)`——同一列两个"不同"类型名。**凡做 reflection ↔ ORM 对比（或以后每加一列做结构核验）都必须先归一化这类同义词**，否则会报出假差异；归一化标准落法在 `backend/tests/models/_type_utils.py`（`canon_type()`，另含剥列级 COLLATE、剥整型显示宽度、BOOL/TINYINT 折 BOOLEAN、默认值剥引号、`CURRENT_TIMESTAMP` 剥精度括号）。同类坑还有：InnoDB 会为每条外键自动建同名索引（比索引须剔除）。
+- **迁移一致性测试是长期资产，不是一次性脚本**：`backend/tests/models/test_migration_consistency.py`（反射 `sfb_dev` 与 ORM 声明三轮加严比对，差异必须为 0）。
+  - **每次在 `backend/` 下跑 pytest 都会自动执行**（pytest.ini `testpaths=tests` 收录，无需额外配置）；单独跑：`.\venv\Scripts\python.exe -m pytest tests/models/test_migration_consistency.py -v`。
+  - 前置：`sfb_dev` 必须已 `alembic upgrade head`——没升级会 **fail** 并提示先执行 upgrade（有意设计成硬失败，不静默跳过）；MySQL 不可达则 skip。
+  - **加表/改表维护点**（新 migration 落地后必须同步，均为故意硬编码的绊线）：文件顶部 `EXPECTED_REVISION` 常量更新为新 revision id；round1 的业务表基线数（当前 12）改为新表数。
+  - CI 接入：该文件不依赖 sfb_test 夹具、无共享状态，可独立运行；CI 只需保证 MySQL 可达 + 先跑 `alembic upgrade head`（APP_ENV=dev 对应 sfb_dev）。
+- **SQLAlchemy 2.x `make_url` 不再对密码 percent-decode；从 URL 对象到 `create_engine` 时不要 render 成字符串再传。所有建 engine 的代码必须 URL 对象直传**（见 `backend/app/core/config.py` 的 `sqlalchemy_url()`）。字符串往返（`render_as_string()` → 再解析）会把转义后的密码原样交给 DBAPI，报 1045。此坑影响后续所有建 engine 的代码，不只是 config.py。
 - backend 目前只有 `/api/health`，ORM/路由/鉴权随 S1/S2 落地后本节要补建表与迁移说明。
 - `restore.ps1` 步骤 3 用 `information_schema.TABLE_ROWS` 是 InnoDB 估算值，仅作参考；**验收判据一律用真实 `COUNT(*)`**。
 - push 到 GitHub 在当前沙箱环境报 `couldn't create signal pipe`，由用户在本机终端执行。

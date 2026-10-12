@@ -25,3 +25,6 @@ pip-*install-*
 backend/.pytest_cache/
 .pytest_tmp/
 backend/.pytest_tmp/
+
+# Windows ACL 修复的本地备份/报告（不入库，见 docs 环境记录）
+.acl-recovery/

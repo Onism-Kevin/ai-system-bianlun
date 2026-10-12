@@ -81,3 +81,17 @@
 - **约束（未来开发必须遵守）**：绕过 ORM 的 UPDATE（原生 SQL、运维脚本、
   导入工具）**不会刷新** `updated_at`。未来若出现此类写路径，
   需要补 `server_onupdate` + 手改 migration。
+
+## E-8 sessions.task_id ON DELETE CASCADE 的产品后果（S3 显式处理）
+
+- **事实**：`sessions.task_id → tasks.id ON DELETE CASCADE`（v2 定稿）。
+  删任务会**连带清除**学生在该任务下的所有练习会话及其
+  消息（messages）、观点版本（revisions）、复盘报告（reports）、
+  提交记录（task_submissions）——级联链：tasks → sessions → messages/reports/revisions/task_submissions。
+- **决策（用户，2026-10-12，S1-5 migration 审阅）**：DB 级联保持 CASCADE
+  （技术上防孤儿），但 **S3 若开放删任务 API，必须在 UI 层明确警告**
+  该后果；**推荐改用 `tasks.is_archived` 归档而非删除**。
+- **理由**：schema_v2 定稿时接受 CASCADE 是"防孤儿"的技术判断，
+  但产品后果（删任务 = 删学生练习记录）要在 S3 显式处理，
+  不能等实现时才发现。
+- **连带**：S3 任务管理 API 的验收应包含"删除路径的警告文案或归档替代"。

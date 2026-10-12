@@ -1,6 +1,6 @@
-# 用户与课程域数据模型 v1 — 草案（待审阅）
+# 用户与课程域数据模型 v1 — FINAL
 
-> 状态：**DRAFT（字段已按用户勾选定稿，待 S1-2 CRUD 冒烟通过后转 FINAL）**。
+> 状态：**FINAL（用户 2026-10-12 确认 S1-5 迁移一致性验证通过后转正；此后改任何字段 = 新 migration + 数据迁移脚本）**。
 > 勾选结论（2026-10-12）：加 display_name / is_active / 'admin' 枚举 / user_roles.created_at / courses.term；
 > 不加 student_no / email / last_login_at。
 >
