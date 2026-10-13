@@ -64,13 +64,24 @@ CSV_COLUMNS = [
 
 
 def build_stage_messages(stage: str, topic: str) -> list[dict]:
-    """按 stage 构造 prompt 消息。coach/report 需要额外上下文，spike 里用占位。"""
+    """按 stage 构造 prompt 消息。coach/report 需要额外上下文，spike 里用占位。
+
+    E-11（2026-10-13）：analyze/coach 入参改为带 seq 的训练消息列表
+    （{seq, role, agent_role?, content}，对齐 messages 表出参），spike 用
+    假消息构造。重跑请指定新 --csv，勿覆盖 spike_results.csv（历史归档，
+    与本 prompt 版本不可比）。
+    """
+    fake_messages = [
+        {"seq": 1, "role": "user", "content": f"我支持议题「{topic}」。"},
+        {"seq": 2, "role": "assistant", "agent_role": "coach",
+         "content": "你给出这个结论的依据是什么？"},
+    ]
     if stage == "decompose":
         return explore_prompt.build_messages(topic)
     if stage == "analyze":
-        return analyze_prompt.build_messages(f"围绕议题「{topic}」的一段正方论证。")
+        return analyze_prompt.build_messages(fake_messages)
     if stage == "coach":
-        return coach_prompt.build_messages(f"学生支持议题「{topic}」的立场。")
+        return coach_prompt.build_messages(fake_messages)
     if stage == "report":
         return report_prompt.build_messages(topic, f"支持议题「{topic}」", "（spike 占位记录）")
     raise ValueError(f"未知 stage: {stage}")

@@ -1,6 +1,6 @@
 # 契约全域一致性检查报告（2026-10-13）
 
-> 状态：v1.0 定稿（用户 2026-10-13 审阅通过；第一批修复已落地并随本报告 commit）
+> 状态：v1.1 定稿（用户 2026-10-13 审阅通过；第一批文档修复 + 第二批 E-11 代码落实均已落地并随本报告 commit）
 > 任务来源：用户 m00769 任务书——S1-11 完成后、S2 开工前，逐条核对 7 个维度。
 > 前置任务：G1 已由 S1-10 修复（方案 §9 有 `POST /api/sessions/{id}/messages` 而 api.md 漏收，
 > api v1.2 已补登）。本报告不再列 G1。
@@ -9,7 +9,7 @@
 
 | 级别 | 条数 | 处置 |
 |---|---|---|
-| 前置阻塞 | 3 | #1 第二批（S2 开工前，改代码）；#2/#3 第一批已修 |
+| 前置阻塞 | 3 | #1/#2/#3 全部已修（#2/#3 第一批；#1 第二批 E-11 代码落实） |
 | 重要 | 9 | #4 第一批已修；#5-#9 分散到对应任务开工前（见待办） |
 | 待用户裁定 | 4 | 已全部拍板（见"用户裁定记录"） |
 | 次要 | 6 | 5 条第一批已修；§4.3 三功能记 S5+ 不修 |
@@ -81,8 +81,10 @@
 
 - **E-7 代码对 schema 文档错**（model_*.py onupdate 应用层 ✓ 但 schema_v1:21/:37/:75、
   schema_v3:27 仍写 DB 层 ON UPDATE CURRENT_TIMESTAMP）——前置阻塞 2，第一批已修。
-- **E-11 未落实到 stage_outputs.py**（EdgeType=Literal["support","attack"] 旧枚举，
-  ArgumentEdge 无 relation/source_ref；CoachTurn 无 quote_refs）——前置阻塞 1，第二批。
+- **E-11 已落实到 stage_outputs.py**（EdgeRelation 中文六枚举取代旧 EdgeType；
+  ArgumentNode 增 source_ref（可选）；CoachTurn 增 quote_refs）——前置阻塞 1，
+  第二批已落实（prompt 同步改新 schema + 带 seq 入参；test_stage_schemas 用例更新；
+  model_bench.py 加注"历史 bench 快照"注释不随动）。
 - **Ollama 残留**（api.md:94、方案:255/:305/:514）——第一批已修。
 - **E-1/E-2/E-3/E-5/E-6/E-8/E-12 落实核对**：api.md/schema/permissions 全部 ✓；
   计划书验收句已就地更新（E-4）✓。健康出参点名问题答案：api.md:74 已无 ollama。
@@ -91,7 +93,7 @@
 
 | # | 问题 | 文件+行号 | 级别 | 处置 |
 |---|---|---|---|---|
-| 1 | E-11 未落实到 stage_outputs.py/prompts（relation 六枚举/source_ref/quote_refs） | stage_outputs.py:33-34,43-46,59-64；analyze.py:27-31,37；coach.py:33 | 前置阻塞 | 第二批（S2 开工前，改代码前停下等指令） |
+| 1 | E-11 未落实到 stage_outputs.py/prompts（relation 六枚举/source_ref/quote_refs） | stage_outputs.py:33-34,43-46,59-64；analyze.py:27-31,37；coach.py:33 | 前置阻塞 | **第二批已落实**（[S1-收口] code: E-11 落实 commit） |
 | 2 | E-7 与 schema 文档矛盾（schema 写 DB 层 ON UPDATE，E-7 定为应用层 onupdate） | schema_v1.md:21,37,75；schema_v3_messages.md:27 | 前置阻塞 | **第一批已修**（改 E-7 口径） |
 | 3 | S2-3 验收句与 E-1 冲突（seq 连续 vs 全局交错） | 计划书 v1.0:68,243；v1.1:196 | 前置阻塞 | **第一批已修**（改"会话内单调"+E-14 备案） |
 | 4 | v1.1 两处旧句（CHECK 生效/spike 标注口径） | v1.1:176,183,264 | 重要 | **第一批已修** |
@@ -126,9 +128,13 @@
 
 ## 待办
 
-1. **第二批（S2 开工前，改代码前停下等指令）**：E-11 落实到
-   `stage_outputs.py`（relation 六枚举+source_ref+quote_refs）+ 5 个 prompt 文件
-   （analyze/coach/rebuttal 需拿带 seq 消息），跑一致性测试确保 schema 校验通过。
+1. ~~第二批（S2 开工前，改代码前停下等指令）~~：**E-11 已落实**（第二批，
+   commit `[S1-收口] code: E-11 落实`）——`stage_outputs.py`（relation 六枚举
+   取代旧 type + source_ref 可选 + quote_refs）+ prompts（analyze/coach/rebuttal
+   改新 schema 输出格式、入参改带 seq 消息列表；`__init__.py` 增 render_messages
+   共享渲染）+ `test_stage_schemas.py` 用例更新 + `run_spike.py` 假消息带 seq
+   + `model_bench.py` 加"历史快照"注释；全量 pytest 通过。prompt 改动说明：
+   新 prompt 与 mini-bench 时不同，mini-bench 数据不重跑（历史归档）。
 2. **重要 #5-#9 分散到对应任务开工前**：#8→S2-2、#5→S3-F2（连带 S3-3 schema 增量）、
    #6→S3-5、#7→S4-2、#9→S5-1。
 3. **S5+**：§4.3 三功能（报告导出/收藏搜索/数据删除）+ explore 输出持久化。

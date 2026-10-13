@@ -96,7 +96,7 @@
 ## 4. 差异裁定记录（2026-10-12 用户拍板，六项全部落定）
 
 1. **explore 出参**：S2-7 使用**独立 schema ExploreOut**（concepts/scope/subquestions/stakeholders）；`DecomposeOut` 保持 spike/mini-bench 用途不动。两者用途不同，schema 归属 S2-7 实现。
-2. **analyze 出参**：`ArgumentMap` **扩展**——edge 增 `relation∈{支持,反驳,补充,依赖,限制,需要证据}`（与 S4 图谱契约共用中文枚举）、node 增 `source_ref:{message_seq, quote}` → **errata E-11**。
+2. **analyze 出参**：`ArgumentMap` **修订**——edge 的 `type` 字段被 `relation` **取代**（字段名+枚举全变，不并存：relation∈{支持,反驳,补充,依赖,限制,需要证据}，与 S4 图谱契约共用中文枚举）、node 增 `source_ref:{message_seq, quote}` → **errata E-11**。
 3. **coach_turn 出参**：`CoachTurn` 扩展增 `quote_refs:[{seq, quote}]` → **errata E-11**（与 2 合并）。
 4. **health 匿名**：permissions §4 已增补"匿名 | health | read | 无（探针）"。
 5. **加入码错误码**：对称化到 **403**（课程 join 404→403）→ **errata E-12**；permissions §3 例外条款已同步改"加入码错误（课程/任务 join）"。

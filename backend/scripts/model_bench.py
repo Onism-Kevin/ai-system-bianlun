@@ -41,6 +41,9 @@ CANDIDATES = [
 ]
 
 # ---------- structured 契约（S0-4 正式 schema 落地前的 bench 版） ----------
+# 历史 bench 快照（S0-3b mini-bench），自带 schema 与
+# prompt，勿随 app/stage_outputs.py 更新——改了会让
+# docs/model_bench_outputs.jsonl 失去可比性。
 
 class DecomposeOut(BaseModel):
     topic: str
