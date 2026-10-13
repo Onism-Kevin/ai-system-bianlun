@@ -1,0 +1,63 @@
+{
+  "rubric_version": "v0.1-draft",
+  "scale": {
+    "min": 0,
+    "max": 100,
+    "note": "每维度先按 0-100 打分，再按 weight 加权求和得到 overall_score（DECIMAL(5,2)，对应 reports 表列）。"
+  },
+  "note": "统一量表（方案 §4.1E）。约束：AI 分数不得单独代表用户能力，报告必须同时展示量表、依据和建议（方案 §4.1E 原文）。levels 档位 description 留空，属 S1-9b 待补；档位区间为初稿，S1-9b 按 spike 数据最终调。",
+  "dimensions": [
+    {
+      "id": "argument_structure",
+      "name": "论证结构",
+      "weight": 0.3,
+      "description": "主张、理由、证据、反例、结论是否齐备且关系清晰（对应论证结构分析的七类要素与支持/反驳/补充/依赖/限制关系）。",
+      "levels": [
+        { "name": "优秀", "min": 90, "max": 100, "description": "" },
+        { "name": "良好", "min": 75, "max": 89, "description": "" },
+        { "name": "合格", "min": 60, "max": 74, "description": "" },
+        { "name": "待改进", "min": 40, "max": 59, "description": "" },
+        { "name": "未达标", "min": 0, "max": 39, "description": "" }
+      ]
+    },
+    {
+      "id": "evidence_quality",
+      "name": "证据质量",
+      "weight": 0.25,
+      "description": "证据是否指向用户原文、课程材料或可查看来源；事实性陈述是否经过核实而非臆断。",
+      "levels": [
+        { "name": "优秀", "min": 90, "max": 100, "description": "" },
+        { "name": "良好", "min": 75, "max": 89, "description": "" },
+        { "name": "合格", "min": 60, "max": 74, "description": "" },
+        { "name": "待改进", "min": 40, "max": 59, "description": "" },
+        { "name": "未达标", "min": 0, "max": 39, "description": "" }
+      ]
+    },
+    {
+      "id": "rebuttal_response",
+      "name": "反驳与回应",
+      "weight": 0.25,
+      "description": "面对 AI 追问、反例或证据要求时，能否识别并回应对方论证的最强点，而非回避或稻草人。评分对象是学生对追问的回应，不评价追问本身（追问质量由 prompt 侧保障，S2-9）。",
+      "levels": [
+        { "name": "优秀", "min": 90, "max": 100, "description": "" },
+        { "name": "良好", "min": 75, "max": 89, "description": "" },
+        { "name": "合格", "min": 60, "max": 74, "description": "" },
+        { "name": "待改进", "min": 40, "max": 59, "description": "" },
+        { "name": "未达标", "min": 0, "max": 39, "description": "" }
+      ]
+    },
+    {
+      "id": "revision_reflection",
+      "name": "观点修订与反思",
+      "weight": 0.2,
+      "description": "是否依据反馈产出可辨识的版本演进（初稿→修改稿），修改是否有方向性改进而非无关改写；反思填写是否具体（反思作为本维度内部子项，不独立成维）。",
+      "levels": [
+        { "name": "优秀", "min": 90, "max": 100, "description": "" },
+        { "name": "良好", "min": 75, "max": 89, "description": "" },
+        { "name": "合格", "min": 60, "max": 74, "description": "" },
+        { "name": "待改进", "min": 40, "max": 59, "description": "" },
+        { "name": "未达标", "min": 0, "max": 39, "description": "" }
+      ]
+    }
+  ]
+}
