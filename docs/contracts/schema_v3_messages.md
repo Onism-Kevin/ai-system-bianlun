@@ -24,7 +24,7 @@
 | `content` TEXT NOT NULL | 有明确依据 | 暂停续写时同一行重写（契约 5.2"追加新 chunk 到同一 DB 行"） |
 | `status` ENUM('streaming','complete','paused_truncated') NOT NULL DEFAULT 'streaming' | 有明确依据（契约 5.2/5.4 + E-3 统一） | SSE 在途=`streaming`；正常完成=`complete`；暂停截断=`paused_truncated`（契约 5.2 原文用词） |
 | `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP | 全局约定 | |
-| `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP | 有明确依据（契约 5.2 续写时间线） | 续写续时刷新 |
+| `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP | 有明确依据（契约 5.2 续写时间线） | 续写续时刷新；DB 层无 ON UPDATE，由应用层 `onupdate` 刷新（errata E-7） |
 | `UNIQUE(session_id, seq)` 复合索引 | 有明确依据（契约 5.1；方案 A 下唯一性已蕴含，保留作回放覆盖索引） | S1-4 验收句"(session_id, seq) 重复插入被拒"成立 |
 
 ## 表 2：`revisions`（观点修改稿，S2-11/S4）
@@ -78,7 +78,7 @@
 | `action` VARCHAR(64) NOT NULL | 有明确依据（S3-1"留痕"、S3-6"敏感操作"） | 如 `user.login` / `user.deactivate` / `role.grant` / `task.create` / `submission.view` |
 | `target_type` VARCHAR(32) NULL | 行业惯例 | 如 `user`/`task`/`session` |
 | `target_id` BIGINT NULL | 行业惯例 | |
-| `detail` JSON NULL | 行业惯例 | 变更前后值/上下文（S3-6"不记录敏感数据"：密码/密钥永不入此列——实现层约束） |
+| `detail` JSON NULL | 行业惯例 | 变更前后值/上下文；方案 §10 的模型版本/错误/耗时/重试四项亦进此列（errata E-13）；S3-6"不记录敏感数据"：密码/密钥永不入此列——实现层约束 |
 | `ip` VARCHAR(45) NULL | **用户拍板加**（errata E-5） | IPv6 上限 45 位；登录留痕常用 |
 | `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP | 全局约定 | 建 `(created_at)` 索引供按时间审计查询 |
 

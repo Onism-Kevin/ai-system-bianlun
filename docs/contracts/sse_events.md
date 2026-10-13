@@ -136,7 +136,7 @@ data: {"session_id": 7, "seq": 128, "agent_role": "pro"}
 {"session_id": 7, "url": "/static/wordclouds/session_7.png"}
 ```
 
-`url` 的确切路径形态由 S1-7 API 契约定（占位）。非回放事件：错过本事件的客户端可通过 REST 查询（S1-7 定义）。
+`url` 的确切路径形态由 S1-7 API 契约定（占位）。**生成时机**：训练会话状态转为 `finished` 时由后端生成并推送本事件（2026-10-13 补充，S1 收口一致性检查）。非回放事件：错过本事件的客户端可通过 REST 查询（S1-7 定义，未生成时 404）。
 
 ### 5.7 error（payload 结构）
 

@@ -18,7 +18,7 @@
 | 约定 | 取值 | 说明 |
 |---|---|---|
 | 主键 | `id BIGINT AUTO_INCREMENT PRIMARY KEY` | 与契约 5.1 风格一致；`task_submissions.student_id` 等跨表引用要求 BIGINT |
-| 时间类型 | `DATETIME`（不用 TIMESTAMP） | 避开 2038 上限；默认值 `CURRENT_TIMESTAMP`，`updated_at` 附加 `ON UPDATE CURRENT_TIMESTAMP` |
+| 时间类型 | `DATETIME`（不用 TIMESTAMP） | 避开 2038 上限；默认值 `CURRENT_TIMESTAMP`；`updated_at` 由应用层 SQLAlchemy `onupdate` 维护，**DB 层不加 `ON UPDATE CURRENT_TIMESTAMP`**（errata E-7） |
 | 字符集/排序 | utf8mb4 / utf8mb4_unicode_ci | S0-9 已定，三库一致 |
 | 删除语义 | 不用 `deleted_at` 软删；账号用 `is_active`、课程用 `is_archived` | 骨架已有；减少状态维度 |
 | 角色存储 | `ENUM`（非 lookup 表） | 值少且稳定；方案未要求动态角色 |
@@ -34,7 +34,7 @@
 | `username` | VARCHAR(50) | NOT NULL, UNIQUE | S2-1 register/login 的登录唯一标识。**规则说明**：username 的字符集/长度/允许字符规则由 S2-1（register API）定义，本表 VARCHAR(50) 只提供存储上限 |
 | `password_hash` | VARCHAR(255) | NOT NULL | S2-1 bcrypt（bcrypt 输出 60 字符，255 留算法升级余量） |
 | `created_at` | DATETIME | NOT NULL DEFAULT CURRENT_TIMESTAMP | 你的骨架；审计基础列 |
-| `updated_at` | DATETIME | NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP | 同上 |
+| `updated_at` | DATETIME | NOT NULL DEFAULT CURRENT_TIMESTAMP | 同上；DB 层无 ON UPDATE，由应用层 `onupdate` 刷新（errata E-7） |
 
 ### 1.2 行业惯例补充（已勾选定稿 2026-10-12）
 
@@ -72,7 +72,7 @@
 | `description` | TEXT | NULL | 你的骨架 |
 | `invite_code` | VARCHAR(8) | NOT NULL, UNIQUE | 你的骨架；S3-2「建课→学生加入闭环」需要课程级加入码 |
 | `created_at` | DATETIME | NOT NULL DEFAULT CURRENT_TIMESTAMP | 你的骨架 |
-| `updated_at` | DATETIME | NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP | 你的骨架 |
+| `updated_at` | DATETIME | NOT NULL DEFAULT CURRENT_TIMESTAMP | 你的骨架；DB 层无 ON UPDATE，由应用层 `onupdate` 刷新（errata E-7） |
 | `is_archived` | TINYINT(1) | NOT NULL DEFAULT 0 | 你的骨架（学期结束归档） |
 
 ### 3.2 行业惯例补充（已勾选定稿 2026-10-12）

@@ -91,7 +91,7 @@
 - 422 校验失败：pydantic 入参校验 + E-2 应用层 visibility 校验 + explore 空 topic/超 5000 字。
 - 409：注册重名、pause 非 generating、resume 非 paused、restart 于 generating 中、quick 非 generating、messages 提交于非 waiting（状态机错位，S2-2 转移表；messages 行 v1.2 补登）。
 - 410：任务 join 已过 deadline（S3-3 验收）。
-- **502/504**（permissions §3 已补行，方案 A）：模型层故障在同步端点的映射——**502 = 上游模型服务错误**（ModelServerError / StructuredValidationError 等 5xx 类）、**504 = 上游模型超时**（ModelTimeoutError / httpx.ReadTimeout）；ModelConnectionError（Ollama/model_gateway 停机）映射 **502**。流式路径不走 HTTP 状态码，映射 error 事件（sse §6，fatal 列）。
+- **502/504**（permissions §3 已补行，方案 A）：模型层故障在同步端点的映射——**502 = 上游模型服务错误**（ModelServerError / StructuredValidationError 等 5xx 类）、**504 = 上游模型超时**（ModelTimeoutError / httpx.ReadTimeout）；ModelConnectionError（模型网关停机）映射 **502**。流式路径不走 HTTP 状态码，映射 error 事件（sse §6，fatal 列）。
 
 ## 4. 差异裁定记录（2026-10-12 用户拍板，六项全部落定）
 
