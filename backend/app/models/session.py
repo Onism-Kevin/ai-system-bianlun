@@ -17,6 +17,7 @@ from sqlalchemy import (
     Enum,
     ForeignKey,
     String,
+    Text,
     text,
 )
 from sqlalchemy.orm import Mapped, mapped_column
@@ -72,3 +73,7 @@ class TrainingSession(Base):
         server_default=text("CURRENT_TIMESTAMP"),
         onupdate=text("CURRENT_TIMESTAMP"),
     )
+    # G2 增量（用户 2026-10-13 裁定，S1-10）：学生个人反思文本，单会话单文本
+    # 不版本化，UPDATE 同一列；配套 API 见 api.md v1.2（POST/GET .../reflection）。
+    # ALTER TABLE ADD COLUMN 追加在表尾，列序必须位于 updated_at 之后（迁移一致性测试比对列序）。
+    reflection: Mapped[str | None] = mapped_column(Text, nullable=True)

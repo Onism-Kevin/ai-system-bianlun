@@ -69,6 +69,8 @@ data: <单行 JSON，禁止内嵌换行>
 `agent_role` ∈ `pro` / `con` / `judge` / `coach`（errata E-5；user/system 消息不走流式）。
 `status` ∈ `complete` / `paused_truncated`（E-3；`streaming` 只出现在 snapshot 里）。
 
+> **用户提交消息不由 SSE 回显**（2026-10-13 S1-10 补注）：用户提交消息（POST /api/sessions/{id}/messages）由前端本地渲染——SSE 事件表只承载服务端→客户端的推送。多标签页一致性由各标签页独立重连回放处理（与 api.md v1.2 messages 行备注一致）。
+
 ## 5. 各事件 payload 与示例帧
 
 ### 5.1 speech_start

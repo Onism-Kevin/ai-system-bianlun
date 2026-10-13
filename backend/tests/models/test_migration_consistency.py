@@ -40,8 +40,9 @@ from app.core.config import database_url_for  # noqa: E402
 from app.models import Base  # noqa: E402
 from app.models.base import MYSQL_TABLE_ARGS  # noqa: E402
 
-# S1-5 卡1 通过时的基线 revision（backend/alembic/versions/5f605c7da13a_initial_12_tables.py）
-EXPECTED_REVISION = "5f605c7da13a"
+# 基线 revision：S1-5 卡1 通过时 5f605c7da13a（initial 12 表）；
+# 2026-10-13 S1-10 G2 增量后为 e8330e859dcc（sessions.reflection 列）
+EXPECTED_REVISION = "e8330e859dcc"
 # Alembic 版本表，不参与业务表比对
 META_TABLE = "alembic_version"
 # 期望表级选项直接取自 ORM 声明源头 MYSQL_TABLE_ARGS（避免两处硬编码漂移）；

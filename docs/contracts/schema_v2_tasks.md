@@ -1,6 +1,7 @@
 # 数据契约定稿 v2：任务与练习三表（S1-3 范围）
 
-> **状态：FINAL（用户 2026-10-12 批准，S1-5 迁移一致性验证通过后转正；此后改任何字段 = 新 migration + 数据迁移脚本）**——焦点一=应用层强制、焦点二=方案 A、焦点三=student_id 为 FK；
+> **状态：FINAL-2026-10-13（S1-10 G2 增量：sessions 加 reflection 列，用户 2026-10-13 批准；第二次 migration 一致性验证通过后转正。此后改任何字段 = 新 migration + 数据迁移脚本）**——前序 2026-10-12 FINAL 版（S1-5 迁移一致性验证通过）；
+> 焦点一=应用层强制、焦点二=方案 A、焦点三=student_id 为 FK；
 > 对 v1.1 的取代声明集中记录在 `errata.md`（E-1/E-2/E-4/E-5），v1.1 原文不改写。
 > 范围：`tasks` / `task_submissions` / `sessions` 三张表（任务卡 S1-3）。
 > 全局约定（utf8mb4 / 时间列 / 约束命名表名在前 / 布尔 tinyint(1)）沿用 `schema_v1.md` §0。
@@ -59,8 +60,15 @@
 | `task_id` BIGINT NULL, FK→`tasks.id` ON DELETE CASCADE | 有明确依据（契约 5.3） | `visibility='task'` 时非空（应用层校验）；任务删除时其练习会话一并删除 |
 | `status` ENUM('waiting','generating','paused','finished','failed') NOT NULL DEFAULT 'waiting' | 有明确依据 | S2-2 状态机五态 + S2-12"列表含状态/时间"必须落库；应用层在状态转移时写入 |
 | `created_at` / `updated_at` | 全局约定 | 列表"时间"列直接取这两列 |
+| `reflection` TEXT NULL | **用户拍板加**（G2 增量，用户 2026-10-13） | 学生个人反思文本（D4 评分输入）；单会话单文本不版本化，UPDATE 同一列；配套 API 见 api.md v1.2（POST/GET /api/sessions/{id}/reflection）；将来 S5 后如需版本化再升独立表 |
 
 > **用户拍板不加**：~~会话级冗余分数列~~（列表契约只要状态/时间，join reports 成本可忽略）。
+
+> **G2 增量说明（2026-10-13，S1-10）**：反思文本存储在 S1-9b 时未定义
+> （notes §6 第 7 条只记"入口/时机未定"）。用户裁定方案 **(a2)**：sessions 加列
+> `reflection TEXT NULL`——MVP 简化原则，单会话单文本、UPDATE 同一列不版本化；
+> (a1) 新表与 (a3) 复用 revisions 均否决（后者污染 D4"修订质量"判定）。
+> 配套端点与"报告生成前填写"的 UI 裁定见 api.md v1.2 与 docs/prototypes/plan.md §4。
 
 **教师可见性**（S3 实现层规则，记录防丢）：教师可见其课程任务下 `task_submissions`
 引用的会话（"提交后教师可见；未提交不可见"，S3-4），不扫全部 task 会话。
@@ -84,6 +92,8 @@ courses ──(RESTRICT)──< tasks ──(CASCADE)──< sessions / task_sub
 
 tasks.score？无此项——否决的是：task_submissions.score/teacher_comment、
 sessions 冗余分数列、reports.UNIQUE(session_id)（允许重跑取最新）。
+（2026-10-13 增补）反思存储 (a1) 新表 / (a3) 复用 revisions 均否决，
+裁定 (a2) sessions.reflection 列（见表 3 增量说明）。
 
 ## 范围外
 
