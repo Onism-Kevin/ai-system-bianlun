@@ -1,7 +1,7 @@
 # 思辨工坊 · 部署文档初稿（S0-11）
 
 > 版本：v0.1（S0 阶段初稿，随 S1～S2 逐步补齐）
-> 最后更新：2026-10-12
+> 最后更新：2026-10-13
 
 ## 1. 环境要求
 
@@ -91,5 +91,9 @@ powershell -ExecutionPolicy Bypass -File backend\scripts\restore.ps1 -DumpFile "
 - **SQLAlchemy 2.x `make_url` 不再对密码 percent-decode；从 URL 对象到 `create_engine` 时不要 render 成字符串再传。所有建 engine 的代码必须 URL 对象直传**（见 `backend/app/core/config.py` 的 `sqlalchemy_url()`）。字符串往返（`render_as_string()` → 再解析）会把转义后的密码原样交给 DBAPI，报 1045。此坑影响后续所有建 engine 的代码，不只是 config.py。
 - backend 目前只有 `/api/health`，ORM/路由/鉴权随 S1/S2 落地后本节要补建表与迁移说明。
 - `restore.ps1` 步骤 3 用 `information_schema.TABLE_ROWS` 是 InnoDB 估算值，仅作参考；**验收判据一律用真实 `COUNT(*)`**。
+- **沙箱写入边界：workspace-write 只放行工作区根目录本身（2026-10-13 S1-10 实测）**。`D:\LLM\AISystemBianlunn\` 根下建文件/建子目录/子目录内写文件均 OK，但**所有子目录（`docs/`、`backend/`、`backend/tests/`、`.git/` 等）一律 `PermissionError(Errno 13)`**。实测探针：根 `probe3.txt` OK、`backend/tests/probe2.txt` FAIL、`.git/` FAIL。影响与对策：
+  - git 写操作（add/commit）拒 `.git/index.lock` Permission denied → 需升级 **danger-full-access** 沙箱（read-only/workspace-write 均拒）；已验证沿用此模式完成全部 commit。
+  - pytest 的 `tmp_path` 必须落在**仓库根**：`backend/tests/conftest.py` 把 tmp_path 重定向到根级 `.pytest_tmp/`（根下级目录可写）；缓存插件直接禁用（`backend/pytest.ini` 的 `addopts = -p no:cacheprovider`）——`_make_cachedir` 的 `tempfile.mkdtemp` 在根目录建出的目录不可访问（`os.listdir`/`chmod` 报 WinError 5，2026-10-13 实测三组对照：普通 `os.mkdir` 目录正常、mkdtemp 目录中毒），建缓存必失败并告警。禁用后无告警，代价是不支持 `--lf/--ff`。
+  - 推论：任何"写子目录"的操作（脚本产物、日志、迁移生成等）在 workspace-write 下都不可行，需要时统一升级 danger-full-access 并在提交说明里注明。
 - push 到 GitHub 在当前沙箱环境报 `couldn't create signal pipe`，由用户在本机终端执行。
 - 备份产物 `backend/scripts/backups/` 不入库（gitignore 已排除）。
