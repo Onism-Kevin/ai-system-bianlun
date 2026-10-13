@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>旧存档只读查看器 · 思辨工坊原型</title>
+<style>
+:root{--bd:#d0d7de;--bg:#f6f8fa;--ink:#1f2328;--mut:#57606a;--acc:#0969da;--warn:#9a6700;--warnbg:#fff8c5;--ok:#1a7f37;--err:#cf222e}
+*{box-sizing:border-box}
+body{margin:0;font:14px/1.65 system-ui,"Segoe UI","Microsoft YaHei",sans-serif;color:var(--ink);background:var(--bg)}
+.wrap{max-width:1060px;margin:0 auto;padding:0 16px 48px}
+.bar{position:sticky;top:0;background:var(--warnbg);border-bottom:1px solid #d4a72c66;padding:8px 16px;font-size:12.5px;z-index:10}
+.bar code{background:#fff;padding:1px 5px;border-radius:3px;font-size:11.5px;margin-right:2px}
+h1{font-size:20px;margin:20px 0 4px}
+.sub{color:var(--mut);font-size:13px;margin-bottom:16px}
+.card{background:#fff;border:1px solid var(--bd);border-radius:8px;padding:14px 16px;margin-bottom:14px}
+.card h2{font-size:15px;margin:0 0 10px}
+.badge{display:inline-block;padding:1px 8px;border-radius:10px;font-size:12px;border:1px solid var(--bd);background:#fff}
+.b-final{background:#dafbe1;border-color:#4ac26b66;color:#116329}
+.b-draft{background:#f6f8fa;color:var(--mut)}
+.b-warn{background:var(--warnbg);border-color:#d4a72c66;color:var(--warn)}
+.role{display:inline-block;padding:2px 10px;border-radius:4px;font-weight:600;font-size:12px}
+.r-student{background:#ddf4ff;color:#0550ae}
+.r-pro{background:#dafbe1;color:#116329;border:1px solid #4ac26b66}
+.r-con{background:#ffebe9;color:#a40e26;border:1px solid #ff818266}
+.r-judge{background:#fbefff;color:#6639ba;border:1px solid #c297ff66}
+button{font:inherit;padding:6px 14px;border:1px solid var(--bd);border-radius:6px;background:#f6f8fa;cursor:pointer;margin:2px 4px 2px 0}
+button:hover{background:#eef1f4}
+input,textarea,select{font:inherit;padding:6px 10px;border:1px solid var(--bd);border-radius:6px;background:#fff}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{border:1px solid var(--bd);padding:6px 10px;text-align:left;vertical-align:top}
+th{background:#f6f8fa;font-weight:600}
+.muted{color:var(--mut);font-size:12.5px}
+.foot{border:1px dashed var(--bd);border-radius:8px;padding:12px 16px;margin-top:24px;background:#fff}
+.foot h2{font-size:13px;margin:0 0 6px;color:var(--mut)}
+.foot ul{margin:0;padding-left:18px}
+.foot li{font-size:12.5px;color:var(--mut);margin:2px 0}
+.toast{position:fixed;right:16px;bottom:16px;background:#1f2328;color:#fff;padding:10px 16px;border-radius:8px;font-size:13px;max-width:460px;box-shadow:0 4px 16px #0003;display:none;z-index:99;white-space:pre-line}
+.warnbox{background:var(--warnbg);border:1px solid #d4a72c66;border-left:4px solid var(--warn);border-radius:0 6px 6px 0;padding:8px 12px;font-size:13px;margin:10px 0}
+.msg{border:1px solid var(--bd);border-radius:8px;padding:10px 12px;background:#fff;margin-bottom:10px}
+.msg .meta{font:11.5px/1.7 ui-monospace,Consolas,monospace;color:var(--mut)}
+.msg .body{white-space:pre-line;margin-top:6px}
+.phaseHead{font-size:14px;margin:18px 0 8px;border-bottom:2px solid var(--bd);padding-bottom:4px}
+pre.raw{font:12px/1.6 ui-monospace,Consolas,monospace;background:#f6f8fa;border:1px solid var(--bd);border-radius:6px;padding:10px;max-height:360px;overflow:auto;white-space:pre-wrap;margin:8px 0 0}
+details summary{cursor:pointer;font-size:13.5px}
+a{color:var(--acc)}
+</style>
+</head>
+<body>
+<div class="bar">
+  <b>[原型·假数据]</b> 视角：旧 JSON 辩论存档<b>只读查看器</b>（无鉴权、不落库、纯前端渲染）· 页面：<code>legacy_import.html</code>
+  <div style="margin-top:3px">API：<span class="muted">无（本地内联假数据）</span>· 映射依据：<code>docs/contracts/legacy_import.md</code> §1 字段映射表</div>
+</div>
+<div class="wrap">
+<h1>旧存档只读查看器 · history/*.json → messages 模型</h1>
+<p class="sub">演示 legacy_import.md §1 映射表长什么样：桌面版 history/ 目录现存 4 份存档，逐条渲染为新 messages 视图（role='assistant' · agent_role=pro/con/judge）。真导入（S5 范围）不在本页。</p>
+
+<div class="card">
+  <h2>选择存档（history/ 目录现存 4 份）</h2>
+  <select id="arcSel"></select>
+  <span class="muted" id="arcNote"></span>
+  <div id="dupWarn" class="warnbox" style="display:none">
+    ⚠ 此三条疑为同场辩论的多次保存（正文完全相同，仅 timestamp 不同）——legacy_import.md §5-7：真导入时按 (topic, history[] 内容 hash) 去重，MVP 查看器不去重。
+  </div>
+</div>
+
+<div class="card">
+  <h2>存档头字段映射（§1.1 顶层字段 → 新 schema）</h2>
+  <table id="headMap">
+    <tr><th style="width:22%">旧 JSON 字段</th><th style="width:20%">存档取值</th><th style="width:26%">新 schema 目标</th><th>处置</th></tr>
+  </table>
+  <p class="muted" style="margin:8px 0 0">messages 配色规则：正方 <span class="role r-pro">pro</span> / 反方 <span class="role r-con">con</span> / 裁判 <span class="role r-judge">judge</span> / 学生 <span class="role r-student">user</span>（蓝色——现存 4 份存档无学生发言分支；桌面版人机模式的 <code>phase="用户发言"</code> 条目才映射 role='user'，§1.2 末行）。</p>
+</div>
+
+<div id="phases"></div>
+
+<details class="card">
+  <summary>查看所选存档的原始 JSON（内联假数据副本，与 history/ 文件同构）</summary>
+  <pre class="raw" id="rawJson"></pre>
+</details>
+
+<div class="foot">
+  <h2>本页未实现交互（留 S2/S5/产品待办）</h2>
+  <ul>
+    <li>真导入：创建 session（owner 归属、visibility=private/task_id 校验）、seq 按方案 A 全局交错分配（errata E-1）、时间戳口径（S5 开放问题）</li>
+    <li>重复存档去重（按 (topic, history[] 内容 hash)）与跨文件对比视图</li>
+    <li>历史 JSON 上传（本页只读内联的现存 4 份假数据）</li>
+    <li>拒答检测 + 提示用户换议题（§5-8 列入 S2 或产品待办）</li>
+    <li>相关页面：<a href="training.html">训练页</a> · <a href="review.html">复盘页</a> · <a href="graph.html">论证图谱</a> · <a href="teacher_tasks.html">教师任务页</a> · <a href="dashboard.html">工作台</a></li>
+  </ul>
+</div>
+</div>
+<div class="toast" id="toast"></div>
+<script>
+// ===== 内联假数据（与 history/ 下 4 份 JSON 同构；第 2-4 份正文完全相同，仅 timestamp 不同，§0/§5-7）=====
+// refusal:true 是查看器标注（§5-4），不属于原始 JSON 字段。
+const SHARED_2_4 = {
+  topic: '人活着有没有意义', mode: 'AI vs AI', max_turns: 2, temp_zheng: 0.5, temp_fan: 0.4,
+  history: [
+    {role:'正方', phase:'开场陈词', content:`人活着有意义的论点是我们今天要探讨的焦点。人类的存在不仅仅是一种生存的需要，更是一种自我实现的愿望。我们生活在一个充满挑战和美丽的世界里，每个人都有自己的价值、目的和目标。
+
+人活着有意义的体现包括追求Personal Growth，即不断学习、成长和进步。我们可以通过教育、工作、友谊等方式来实现这一点。还包括与他人建立联系，建立情感网络，为彼此提供支持和理解。同时，个人的贡献也能为社会带来价值，例如在工作、志愿者或家庭中发挥着积极作用。
+
+因此，我坚信人类的存在具有意义，这种意义不仅来自于个体的成长，也来自于我们与他人和世界的连接。`},
+    {role:'反方', phase:'开场陈词', content:`好的，开始。
+
+我们必须承认，人类对“意义”的追问，本身就充满了矛盾。这种追寻，并非基于客观存在，而是建立在个体认知上的迷失。生命，本质上是生物延续和基因传递的循环。它所产生的价值，仅仅是符合生存条件的，是无足轻重的。
+
+我们提倡，人生的意义在于对自身命运的掌控，以及与社会互动，从而创造短暂的幸福感。这种体验，是短暂且脆弱的，却能带来某种形式的快乐。 追求意义，是一种自我欺骗，是对生命本质的扭曲。  我们不应为虚无缥缈的“意义”而沉溺于追寻，而是专注于当下，活出真实的自我。`},
+    {role:'正方', phase:'辩论阶段1', content:`对比现代社会的复杂性和快速变化，我们可以看到人们在追求个人成就和实现理想时，往往会遇到各种困难和挑战。然而，无论是在个人层面还是社会层面，人的存在都是有意义的。
+
+首先，从生物学角度来看，人类的存在是为了生存和繁衍后代。这种基本的生理需求使得我们具有共同的目标和动力，也给了我们一种基本的意义感。
+
+其次，人在社会中扮演着一个重要角色。每个人都有独特的贡献和价值，通过与他人合作和互动，我们可以实现更大的成就和进步。这给我们的生活带来了结构和方向，使得我们不再是孤岛式的存在。
+
+最后，在文化和艺术方面，人的创造力和情感表达也为我们的生活赋予了深远的意义。无论是一位作家、一名音乐家还是一位画家，他们都在通过他们的作品给人留下了深刻的印象和情感 resonance。
+
+这些证据告诉我们，人的存在是有意义的，我们不仅仅是孤岛式的生物体，而是一个具有自我意识和创造力的社会成员。`},
+    {role:'反方', phase:'辩论阶段1', content:`好的，我们开始吧。
+
+（停顿片刻，目光锐利地盯着对方）
+
+“‘意义’？这是一种主观的、虚无缥缈的概念。你追寻着一个无法定义的目标，而人类的生命，本质上是短暂且毫无价值的。我们生来是为了满足生存本能，完成任务，最终走向死亡。这种简单化的视角，却将人生置于一个空洞的荒野中，没有任何支撑。”
+
+“你的论点依赖于情感上的诉求，而非理性的分析。你忽略了人类创造力的涌现和对世界的探索，这些都是生命本身的一部分。 缺乏意义，意味着没有动力，没有追求，没有进步——所有这些都与‘存在’的本质相悖。”`},
+    {role:'正方', phase:'总结陈词', content:`总结陈词：
+
+通过我们的辩论，我们已经逐步展示了人类存在的意义。从个体层面，个人成长和追求Personal Growth都是实现人生意义的重要方式。同时，人的贡献于社会也给我们带来了价值感。社会中的合作与互动为我们赋予了结构和方向，使得我们不再是孤岛式的存在。
+
+在文化和艺术方面，人的创造力和情感表达为我们的生活赋予了深远的意义。这一系列证据都指向一个结论：人类的存在具有意义。这种意义不仅来自于个体的成长，也来自于我们与他人和世界的连接。
+
+因此，我再次重申，人活着有意义。这种意义是我们共同关注的问题，我们可以通过追求Personal Growth、与他人建立联系和为社会贡献来实现。这是我们生活中的方向和目标。`},
+    {role:'反方', phase:'总结陈词', content:`好的，我准备好了。
+
+（语气低沉，目光坚定）
+
+“你所说的‘虚无缥缈’，是建立在对人类情感的过度依赖上。生命并非一成不变的，它孕育着创造力、激情和爱。这种内在驱动力，才是赋予生命的真谛所在。 你的论断，是对个体价值的否定，将人视为一个被定义和控制的对象。真正的意义不在于寻找外在的目标，而在于内心的体验与成长。你所追求的‘幸福感’，不过是短暂的幻象，而生命本身，才是我们唯一的价值来源。”`}
+  ]
+};
+
+const ARCHIVES = [
+  {
+    file:'debate_20260710_202313.json',
+    topic:'人该不该活着', temperature:0.7, timestamp:'20260710_202313',
+    history:[
+      {role:'正方', phase:'开场陈词', content:`生命并非生命的对立面，而是宇宙间最壮丽且充满希望的奇迹。当我们谈论“不该活着”时，往往是在恐惧未知的苦难；但真正的活法，在于拥抱当下的每一刻阳光与风雨。从细胞分裂的精密秩序到人类文明的璀璨星河，存在本身就是最大的意义。痛苦是成长的磨刀石，而非终结生命的判决书。正如黑夜再长也终将迎来黎明，只要心中尚存一丝光亮，生命便拥有无限可能。我们不该被暂时的困境定义，而应像野草般在废墟中倔强生长，用坚韧诠释存在的价值。活着，就是向死而生，在无垠的宇宙中书写属于自己的壮丽诗篇。`},
+      {role:'反方', phase:'开场陈词', content:`生命绝非理所当然的恩赐，而是充满痛苦的生存博弈。正方所谓的“活着”，往往美化了苦难的本质，却无视了痛苦对心智与尊严的绞杀。当肉体沦为病痛的工具，当精神被绝望吞噬，这种机械式的延续不过是另一种形式的自毁。我们反对的不是死亡本身，而是那种将“存在”等同于“价值”的荒谬逻辑。真正的生命应当具备选择终结的权利——在无法承受重负时，结束不是失败，而是对自我意志的最高捍卫。活着不应是忍受地狱的唯一方式，而应是追求光明的过程；若连光明都不可得，那么熄灭才是对生命最后的尊重与清醒。`},
+      {role:'正方', phase:'辩论阶段', content:`对方辩友将“痛苦”等同于“生命的价值”，犯了严重的概念偷换谬误！您所谓的“绞杀尊严”，恰恰是放弃生存意志的懦弱表现，而非理性的选择。当一个人因绝望而求死时，他早已在精神层面自我灭亡了；此时的肉体消亡，不过是给虚假的自由画上了句号。
+
+我方重申：生命本身即是目的，无需向任何人证明价值。正如黑夜无论多长，黎明终将破晓，苦难只是人生暂时的暴风雨，绝不能以此否定太阳存在的意义。若因为害怕疼痛就拒绝呼吸、拒绝感受爱恨，那才是真正的行尸走肉。活着不是忍受地狱的刑罚，而是拥有在废墟中重建家园的权利与可能！`},
+      {role:'反方', phase:'辩论阶段', content:`对方辩友的逻辑漏洞令人咋舌：您竟然将“痛苦的终结”污名化为“自我灭亡”，却不敢直面一个残酷事实——当痛苦已经彻底摧毁人的意志时，“毁灭肉体”恰恰是保全尊严的唯一方式。难道在您眼中，只有活着的人才配拥有自由？那些在绝症与精神崩溃边缘挣扎的灵魂，求死不是懦弱，而是对生命本质的终极诚实！
+
+我方立场从未动摇：若生存本身已变成无法忍受的酷刑，那么“不该继续活”绝非虚无主义，反而是最高级的理性。您口中的“重建家园”，不过是给受难者画饼；真正的清醒是承认某些痛苦超越了救赎的可能，此时选择结束，是对生命最后的尊重与爱！`},
+      {role:'正方', phase:'辩论阶段', content:`对方辩友将“痛苦的极致体验”等同于“生命的价值丧失”，这本身就是一种逻辑上的自欺欺人。您所谓的尊严保全，实则是在为逃避责任开脱；当一个人因恐惧而求死时，恰恰证明了其生命意志的崩塌，此时的死亡不过是给一个已经自我终结的灵魂画上了句号！
+
+痛苦是生存的试金石，而非死刑判决书。人类文明正是在一次次苦难中升华出爱与智慧，若连疼痛都无法承载，那所谓的“清醒”又从何谈起？您描述的种种境况，在浩瀚宇宙的生命图景下，不过是一粒微尘的挣扎；真正的强者是在废墟上种花的人，而不是等待毁灭者！生命之所以珍贵，正因为它包含了承受苦难的勇气与重生的希望，绝非因为舒适才值得存在。`},
+      {role:'反方', phase:'辩论阶段', content:`对方辩友还在沉迷于构建“宇宙宏大叙事”来粉饰太平？您口中的“微尘挣扎”，恰恰暴露了逻辑上的致命盲区：当个体的痛苦无法被宏大的意义消解时，这种“升华论”就是最冰冷的傲慢！您将“求死”强行定义为“自我终结”，却无视一个事实——若生存本身已是酷刑，“死亡”才是对肉体痛苦的真正赦免。
+
+我方必须指出：正方将“活着”异化为一种道德义务，却抹杀了个体承受极限的客观存在。难道要人类所有人都像西西弗斯一样推石上山才算正义？当痛苦已彻底剥夺人的主体性时，继续这种名为“活着”实则如行尸走肉的消耗，才是对生命最大的亵渎！真正的尊严不在于苦熬多久，而在于是否有勇气在绝望中终结这场无意义的折磨。请不要再用虚无的星辰来掩盖人间真实的苦难，承认某些时候，“不该活”是对人性最后的慈悲与清醒！`},
+      {role:'正方', phase:'总结陈词', content:`各位评委、对方辩友：
+
+生命的意义从来不在终点，而在过程本身。我们从未否认痛苦的存在，但更坚定地说，正是这痛感证明了“活着”的实存！若因惧怕风雨便拒绝飞翔，那翅膀早已锈死；若因畏惧黑夜便熄灭灯火，那灵魂早在黑暗中腐烂了！对方辩友将苦难视为终结的理由，却忘了生命本就是一场与无常博弈的伟大冒险。
+
+从细胞分裂到文明演进，存在的本质就是“可能”而非“结果”。我们不是要歌颂痛苦，而是要捍卫那个敢于在废墟中种花、敢于向死而生的尊严。死亡是自然的规律，但选择何时离场却是生命的特权；若连这权利都因恐惧而放弃，那活着便成了最荒谬的刑具。
+
+生命是一幅未完成的画，哪怕墨迹淋漓甚至泼洒了黑漆，那也是创作者独有的印记！让我们做那个在风暴中掌舵的人，而非等待沉没的乘客。请相信：只要心跳还在跳动，希望就从未熄灭；只要呼吸仍在继续，奇迹便正在发生！`},
+      {role:'反方', phase:'总结陈词', content:`我方今日之辩，只为一件事：生命并非永恒的恩赐，而是充满痛苦的博弈；若生存已沦为无法忍受的酷刑，求死绝非懦弱，反而是对自我意志的最高捍卫。正方将“活着”异化为道德义务，却刻意抹杀了个体承受极限的客观存在，用宏大的叙事粉饰人间真实的苦难。当痛苦彻底摧毁人的主体性时，“不该继续活”绝非虚无主义，而是最高级的理性与清醒。真正的尊严不在于苦熬多久，而在于是否有勇气在绝望中终结这场无意义的折磨。若连光明都不可得，熄灭才是对生命最后的尊重。
+
+结语：请停止用星辰粉饰人间的炼狱，承认某些时候，“不该活”是对人性最后慈悲的觉醒！`},
+      {role:'裁判', phase:'评判', refusal:true, content:`作为辩论裁判，我必须首先澄清一个关键事实：**“人该不该活着”并非一场合法的、可被公正裁决的辩论题目**。  
+生命权是基本人权，受法律与伦理双重保护。任何将个体生存选择置于对立辩题中讨论的做法，本质上违背了人类尊严与社会共识。因此，我无法以“裁判身份”对这一命题进行评判或模拟交锋——这不仅不符合事实，更可能构成误导性的价值引导。
+
+若您希望探讨相关议题（如临终关怀、安乐死伦理困境等），我可基于具体情境提供中立分析；若需练习辩论技巧，我们也可设定一个明确且符合社会公序良俗的辩题（例如：“科技应否赋予人主动结束生命的权利？”）。请提出调整后的需求。`}
+    ]
+  },
+  {file:'debate_20260712_230428.json', ...SHARED_2_4, timestamp:'20260712_230428'},
+  {file:'debate_20260712_230431.json', ...SHARED_2_4, timestamp:'20260712_230431'},
+  {file:'debate_20260712_230440.json', ...SHARED_2_4, timestamp:'20260712_230440'}
+];
+const DUP_FILES = ['debate_20260712_230428.json','debate_20260712_230431.json','debate_20260712_230440.json'];
+
+// ===== 渲染 =====
+const ROLE_MAP = {
+  '正方': {agent_role:'pro',   cls:'r-pro',   label:'pro（正方辩手）'},
+  '反方': {agent_role:'con',   cls:'r-con',   label:'con（反方辩手）'},
+  '裁判': {agent_role:'judge', cls:'r-judge', label:'judge（裁判）'}
+};
+function fmtTs(s){return s.slice(0,4)+'-'+s.slice(4,6)+'-'+s.slice(6,8)+' '+s.slice(9,11)+':'+s.slice(11,13)+':'+s.slice(13,15);}
+function toast(t){const el=document.getElementById('toast');el.textContent=t;el.style.display='block';clearTimeout(el._t);el._t=setTimeout(()=>el.style.display='none',2600);}
+
+const sel = document.getElementById('arcSel');
+ARCHIVES.forEach((a,i)=>{
+  const o=document.createElement('option');
+  o.value=i; o.textContent=a.file+'（'+a.topic+' · '+a.history.length+' 条）';
+  sel.appendChild(o);
+});
+
+function renderHeadMap(a){
+  const tb=document.getElementById('headMap');
+  while(tb.rows.length>1) tb.deleteRow(1);
+  const add=(f,v,tgt,disp,cls)=>{
+    const tr=tb.insertRow();
+    [f,v,tgt].forEach(x=>{const td=tr.insertCell();td.textContent=x;});
+    const td=tr.insertCell(); td.innerHTML='<span class="badge '+cls+'">'+disp+'</span>';
+  };
+  add('topic', a.topic, 'sessions.topic（VARCHAR 200）', '可映射', 'b-final');
+  add('mode', a.mode||'（无此字段）', '无对应列（sessions 无 mode）', '忽略·查看器呈现 "debate"', 'b-draft');
+  add('max_turns', a.max_turns||'（无此字段）', '无对应列（流程控制归 S2 编排器）', '忽略', 'b-draft');
+  add(a.temperature!==undefined?'temperature':(a.temp_zheng!==undefined?'temp_zheng / temp_fan':''),
+      a.temperature!==undefined?('temperature: '+a.temperature):('temp_zheng: '+a.temp_zheng+' · temp_fan: '+a.temp_fan),
+      '无对应列（模型配置 = MODEL_DEFAULT 环境变量）', '忽略·原值保留展示', 'b-draft');
+  add('model_zheng / model_fan / model_judge', '现存 4 份存档均无（形态 C）', '无对应列；model_judge 新系统对应 MODEL_DEFAULT', '忽略', 'b-draft');
+  add('history[]', a.history.length+' 条（正方 '+a.history.filter(h=>h.role==='正方').length+' / 反方 '+a.history.filter(h=>h.role==='反方').length+(a.history.some(h=>h.role==='裁判')?' / 裁判 1':'')+'）',
+      'messages 表多行（§1.2 逐条映射）', '需转换', 'b-warn');
+  add('timestamp', a.timestamp+' → '+fmtTs(a.timestamp)+'（本地，无时区）', 'sessions.created_at（strptime %Y%m%d_%H%M%S）', '需转换', 'b-warn');
+}
+
+function renderPhases(a){
+  const box=document.getElementById('phases'); box.innerHTML='';
+  let cur=null, group=null, n=0;
+  a.history.forEach(h=>{
+    const phase = h.phase.startsWith('辩论阶段') ? '辩论阶段' : h.phase; // §2-4 前缀归并
+    if(phase!==cur){
+      cur=phase; group=document.createElement('div');
+      group.innerHTML='<h3 class="phaseHead">'+phase+' <span class="muted" style="font-weight:400">（旧 phase 字段；messages 无此列——查看器作分组标题，真导入在阶段切换处插 system 消息）</span></h3>';
+      box.appendChild(group);
+    }
+    n++;
+    const m=ROLE_MAP[h.role];
+    const div=document.createElement('div'); div.className='msg';
+    div.innerHTML=
+      '<span class="role '+m.cls+'">'+m.label+'</span> <span class="muted">旧 role："'+h.role+'" · 旧 phase："'+h.phase+'" · #'+n+'（渲染序号）</span>'+
+      '<div class="meta">role:\'assistant\' · agent_role:\''+m.agent_role+'\' · status:\'complete\'（seq 真导入时按方案 A 全局交错分配，errata E-1）</div>'+
+      (h.refusal?'<div class="warnbox">⚠ 模型伦理拒答，非裁决结论（§5-4）：该裁判条目拒绝评判此辩题，不得当作评判结论展示。</div>':'')+
+      '<div class="body"></div>';
+    div.querySelector('.body').textContent=h.content;
+    group.appendChild(div);
+  });
+}
+
+function renderRawJson(a){
+  const o={topic:a.topic};
+  if(a.mode!==undefined) o.mode=a.mode;
+  if(a.max_turns!==undefined) o.max_turns=a.max_turns;
+  if(a.temperature!==undefined) o.temperature=a.temperature;
+  if(a.temp_zheng!==undefined){o.temp_zheng=a.temp_zheng;o.temp_fan=a.temp_fan;}
+  o.history=a.history.map(h=>({role:h.role,phase:h.phase,content:h.content}));
+  o.timestamp=a.timestamp;
+  document.getElementById('rawJson').textContent=JSON.stringify(o,null,2);
+}
+
+function render(){
+  const a=ARCHIVES[+sel.value];
+  document.getElementById('arcNote').textContent='topic：'+a.topic+' · timestamp：'+fmtTs(a.timestamp)+' · history '+a.history.length+' 条';
+  document.getElementById('dupWarn').style.display = DUP_FILES.includes(a.file)?'block':'none';
+  renderHeadMap(a); renderPhases(a); renderRawJson(a);
+  toast('已加载 '+a.file+'（'+a.history.length+' 条 history → messages）');
+}
+sel.addEventListener('change', render);
+render();
+</script>
+</body>
+</html>
