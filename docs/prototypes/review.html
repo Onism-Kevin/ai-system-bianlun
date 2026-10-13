@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>复盘页 · 思辨工坊原型</title>
+<style>
+:root{--bd:#d0d7de;--bg:#f6f8fa;--ink:#1f2328;--mut:#57606a;--acc:#0969da;--warn:#9a6700;--warnbg:#fff8c5;--ok:#1a7f37;--err:#cf222e}
+*{box-sizing:border-box}
+body{margin:0;font:14px/1.65 system-ui,"Segoe UI","Microsoft YaHei",sans-serif;color:var(--ink);background:var(--bg)}
+.wrap{max-width:1060px;margin:0 auto;padding:0 16px 48px}
+.bar{position:sticky;top:0;background:var(--warnbg);border-bottom:1px solid #d4a72c66;padding:8px 16px;font-size:12.5px;z-index:10}
+.bar code{background:#fff;padding:1px 5px;border-radius:3px;font-size:11.5px;margin-right:2px}
+h1{font-size:20px;margin:20px 0 4px}
+.sub{color:var(--mut);font-size:13px;margin-bottom:16px}
+.card{background:#fff;border:1px solid var(--bd);border-radius:8px;padding:14px 16px;margin-bottom:14px}
+.card h2{font-size:15px;margin:0 0 10px}
+.badge{display:inline-block;padding:1px 8px;border-radius:10px;font-size:12px;border:1px solid var(--bd);background:#fff}
+.b-final{background:#dafbe1;border-color:#4ac26b66;color:#116329}
+.b-draft{background:#f6f8fa;color:var(--mut)}
+.role{display:inline-block;padding:2px 10px;border-radius:4px;font-weight:600;font-size:12px}
+.r-student{background:#ddf4ff;color:#0550ae}
+button{font:inherit;padding:6px 14px;border:1px solid var(--bd);border-radius:6px;background:#f6f8fa;cursor:pointer;margin:2px 4px 2px 0}
+button:hover{background:#eef1f4}
+button.primary{background:var(--acc);color:#fff;border-color:var(--acc)}
+button:disabled{opacity:.4;cursor:not-allowed}
+input,textarea,select{font:inherit;padding:6px 10px;border:1px solid var(--bd);border-radius:6px;background:#fff}
+textarea{width:100%;min-height:90px;resize:vertical}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{border:1px solid var(--bd);padding:6px 10px;text-align:left;vertical-align:top}
+th{background:#f6f8fa;font-weight:600}
+.muted{color:var(--mut);font-size:12.5px}
+.foot{border:1px dashed var(--bd);border-radius:8px;padding:12px 16px;margin-top:24px;background:#fff}
+.foot h2{font-size:13px;margin:0 0 6px;color:var(--mut)}
+.foot ul{margin:0;padding-left:18px}
+.foot li{font-size:12.5px;color:var(--mut);margin:2px 0}
+.toast{position:fixed;right:16px;bottom:16px;background:#1f2328;color:#fff;padding:10px 16px;border-radius:8px;font-size:13px;max-width:460px;box-shadow:0 4px 16px #0003;display:none;z-index:99;white-space:pre-line}
+.toast.err{background:var(--err)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:860px){.grid2{grid-template-columns:1fr}}
+.callout{background:#ddf4ff22;border:1px solid #54aeff66;border-left:4px solid var(--acc);border-radius:0 6px 6px 0;padding:8px 12px;font-size:13px;margin:10px 0}
+.score{display:flex;align-items:baseline;gap:8px}
+.score .n{font-size:22px;font-weight:700}
+.dim{border:1px solid var(--bd);border-radius:8px;padding:10px 12px;background:#fbfcfd}
+.dim h3{font-size:13.5px;margin:0 0 4px}
+.dim .ev{font-size:12.5px;color:var(--mut);margin-top:6px}
+.pbar{height:8px;background:#eaeef2;border-radius:4px;overflow:hidden;margin:6px 0}
+.pbar i{display:block;height:100%;background:var(--acc);width:0;transition:width .3s}
+.plog{font:12px/1.7 ui-monospace,Consolas,monospace;color:var(--mut);background:#f6f8fa;border:1px solid var(--bd);border-radius:6px;padding:8px 10px;margin-top:8px;white-space:pre-line}
+a{color:var(--acc)}
+</style>
+</head>
+<body>
+<div class="bar">
+  <b>[原型·假数据]</b> 角色：<span class="role r-student">学生</span>（会话 owner）· 页面：复盘页 <code>review.html</code>
+  <div style="margin-top:3px">API：<code>POST /api/sessions/{id}/reports</code><code>GET /api/sessions/{id}/reports</code><code>GET /api/reports/{id}</code><code>GET /api/revisions?session_id=</code><code>POST /api/sessions/{id}/reflection</code><code>GET /api/sessions/{id}/reflection</code><code>POST /api/tasks/{task_id}/submissions</code></div>
+</div>
+<div class="wrap">
+<h1>复盘页 · 个人反思 / 量表反馈 / 版本比较</h1>
+<p class="sub">静态原型：全部数据为假；评分维度与权重取自 rubric.json v1.0（论证结构 0.30 / 证据质量 0.25 / 反驳与回应 0.25 / 观点修订与反思 0.20）。</p>
+
+<div class="card">
+  <h2>个人反思（G2 已裁定：sessions.reflection 列 + api.md v1.2 反思端点）</h2>
+  <p class="muted">时机：报告生成前填写——D4 评分依赖反思文本（rubric 待改进/未达标档均含“反思缺失”）。保存后可修改，重跑报告反映最新文本。</p>
+  <textarea id="refl" placeholder="例：依据教练追问（seq 2“披露粒度”），我在修改稿中把“披露义务”细化为工具+环节两级，并补了核验责任一段……"></textarea>
+  <button class="primary" id="btnReflSave">保存反思（POST reflection）</button>
+  <button id="btnReflGet">读取（GET reflection）</button>
+  <span id="reflState" class="muted">当前：未填写（content=null，D4 按“反思缺失”计）</span>
+</div>
+
+<div class="card">
+  <h2>量表反馈（POST /api/sessions/{id}/reports，SSE report_progress/ready 跟进）</h2>
+  <button class="primary" id="btnReport">生成报告</button>
+  <button id="btnRerun">重新生成（重跑=新行，E-5 无 UNIQUE）</button>
+  <div class="pbar"><i id="pb"></i></div>
+  <div class="plog" id="plog">（点击“生成报告”查看假 report_progress / report_ready 事件序列）</div>
+  <div id="report" style="display:none">
+    <div class="callout">分数不得单独代表用户能力。报告须展示量表、依据和建议。（方案 §4.1E）</div>
+    <p><span class="badge b-final">rubric_version v1.0</span> <span class="muted">overall_score：<b id="ov" style="font-size:18px"></b> / 100（四维加权 Σ score×weight）</span></p>
+    <div class="grid2" id="dims"></div>
+    <h3 style="font-size:14px;margin:14px 0 6px">sections[]（量表 / 依据 / 建议）</h3>
+    <div id="sections"></div>
+  </div>
+</div>
+
+<div class="card">
+  <h2>观点版本比较（GET /api/revisions?session_id=）</h2>
+  <div id="vers"></div>
+</div>
+
+<div class="card">
+  <h2>提交给课程任务（POST /api/tasks/{task_id}/submissions，upsert）</h2>
+  <select id="taskSel">
+    <option>论证练习：AI 学术诚信（哲学导论，deadline 2026-10-20）</option>
+  </select>
+  <button id="btnSubmit">提交（upsert：UNIQUE(task_id,student_id)）</button>
+  <span class="muted">重复提交或换会话重做=更新旧行（E-5）；未提交 → submissions/me 返回 404（存在性隐藏）。</span>
+</div>
+
+<div class="foot">
+  <h2>本页未实现交互（留 S2/S3/S4）</h2>
+  <ul>
+    <li>报告生成真实实现：四维评分 prompt + rubric v1.0 档位映射（S2-10）；报告 prompt 读取反思分支（无反思=无反思分支，notes §6 第 6/7 条）</li>
+    <li>report_progress / report_ready SSE 逐节跟进（S2-F7 UI 硬约束：中位 30.8s 需进度反馈，spike 数据）</li>
+    <li>revisions 真实 diff_vs_prev 计算（S2-11）；submissions 真实 upsert（S3-4）</li>
+    <li>教师查看本页复盘：随可见集合（task 会话可读、private 一律 404，permissions §5）</li>
+    <li>相关页面：<a href="training.html">训练页</a> · <a href="graph.html">论证图谱</a> · <a href="dashboard.html">工作台</a></li>
+  </ul>
+</div>
+</div>
+<div class="toast" id="toast"></div>
+<script>
+const REPORT={
+  id:7,session_id:42,rubric_version:'v1.0',created_at:'2026-10-13 14:02',
+  scores:[
+    {k:'argument_structure',name:'论证结构',score:78,weight:0.30,ev:'（seq 1）主张明确给出定义域“高校课程作业与毕业论文”；但“披露义务”与“禁止”的关系到（seq 5）才澄清，前置论证有跳跃。'},
+    {k:'evidence_quality',name:'证据质量',score:65,weight:0.25,ev:'（seq 7）引用“某校试点”无来源标注（图谱中 verified=false 待核实）；主要主张仅一处证据支撑。'},
+    {k:'rebuttal_response',name:'反驳与回应',score:82,weight:0.25,ev:'（seq 5）对“削弱自主论证能力”给出限定条件回应；追问（seq 3）的披露粒度问题已闭合。'},
+    {k:'revision_reflection',name:'观点修订与反思',score:71,weight:0.20,ev:'修改稿相对初稿有两类方向性改进（补证据 + 修正结构）；反思指出依据了教练追问（seq 2），未展开取舍（良好/优秀档边界由反思深度裁决）。'}
+  ],
+  sections:[
+    {heading:'量表',body:'四维加权得分 74.4/100（rubric v1.0）：论证结构 78（权重 0.30）/ 证据质量 65（0.25）/ 反驳与回应 82（0.25）/ 观点修订与反思 71（0.20）。'},
+    {heading:'依据',body:'依据为学生会话消息原文（seq 引用）与课程材料；评分标准见 rubric.json v1.0 各档位描述（产品标准，非模型合规率映射）。'},
+    {heading:'建议',body:'① 为“某校试点”补充可查看来源，或保留待核实标记（§3-3 不确定性可见）；② 在 seq 5 前置澄清“披露 vs 禁止”，闭合结构跳跃；③ 反思展开“为何选披露而非禁止”的取舍依据。'}
+  ]
+};
+const VERS=[
+  {v:1,status:'draft',label:'初稿',diff:null,content:'高校应把 AI 辅助写作纳入学术诚信规范，明确披露义务。'},
+  {v:2,status:'draft',label:'修改稿',diff:'+证据段（seq 7）/ +核验责任段',content:'……规范应聚焦透明披露而非禁止；补充：某校试点显示披露后申诉下降四成（待核实）；核验责任落在任课教师抽检。'}
+];
+let reflection=null;
+const $=s=>document.querySelector(s);
+let tmr;
+function toast(m,err){const t=$('#toast');t.textContent=m;t.className='toast'+(err?' err':'');t.style.display='block';clearTimeout(tmr);tmr=setTimeout(()=>t.style.display='none',3800);}
+function renderVers(){
+  $('#vers').innerHTML='<table><tr><th>version</th><th>status</th><th>diff_vs_prev</th><th>内容（点击展开）</th></tr>'+
+  VERS.map((v,i)=>'<tr><td>v'+v.v+'</td><td><span class="badge '+(v.status==='final'?'b-final':'b-draft')+'">'+v.status+'</span></td><td>'+(v.diff||'—（首版 null）')+'</td><td><a href="javascript:void(0)" onclick="toggleV('+i+')">'+v.label+'</a><div id="vc'+i+'" style="display:none;margin-top:6px" class="muted">'+v.content+'</div></td></tr>').join('')+'</table>';
+}
+function toggleV(i){const d=$('#vc'+i);d.style.display=d.style.display==='none'?'block':'none';}
+function renderReport(){
+  const ov=REPORT.scores.reduce((a,d)=>a+d.score*d.weight,0);
+  $('#ov').textContent=ov.toFixed(1);
+  $('#dims').innerHTML=REPORT.scores.map(d=>'<div class="dim"><h3>'+d.name+' <span class="muted">'+d.k+'</span></h3><div class="score"><span class="n">'+d.score+'</span><span class="muted">/100 · 权重 '+d.weight+' · 加权 '+(d.score*d.weight).toFixed(1)+'</span></div><div class="ev">依据：'+d.ev+'</div></div>').join('');
+  $('#sections').innerHTML=REPORT.sections.map(s=>'<p><b>'+s.heading+'：</b>'+s.body+'</p>').join('');
+  $('#report').style.display='block';
+}
+$('#btnReport').onclick=()=>{
+  const b=$('#btnReport');b.disabled=true;
+  const steps=[['report_progress index=1 论点构建',25],['report_progress index=2 证据使用',55],['report_progress index=3 回应与修订',85],['report_ready report_id=7',100]];
+  $('#plog').textContent='';
+  let i=0;
+  (function step(){
+    if(i>=steps.length){renderReport();toast('报告已生成：201 {report} —— GET /api/reports/{id} 出参 sections[] 三段（量表/依据/建议）');b.disabled=false;return;}
+    $('#plog').textContent+=steps[i][0]+'\n';$('#pb').style.width=steps[i][1]+'%';
+    i++;setTimeout(step,450);
+  })();
+};
+$('#btnRerun').onclick=()=>{toast('重跑=新行（reports 无 UNIQUE，E-5）：新 report_id=8，rubric_version 仍快照 v1.0（旧报告可解释）');};
+$('#btnReflSave').onclick=()=>{
+  const v=$('#refl').value.trim();
+  if(!v){toast('422：content 空/超长',1);return;}
+  reflection={content:v,updated_at:'2026-10-13 14:05（假）'};
+  $('#reflState').textContent='当前：已保存 · updated_at '+reflection.updated_at;
+  toast('200 {updated_at} —— UPDATE sessions.reflection 同一列（单会话单文本不版本化，a2 裁定）');
+};
+$('#btnReflGet').onclick=()=>{
+  if(!reflection){toast('200 {content:null, updated_at:null} —— 空反思不 404（404=越权存在性隐藏）；报告 prompt 按无反思分支处理');return;}
+  $('#refl').value=reflection.content;
+  toast('200 {content, updated_at} —— 供报告 prompt 读取（S2-10）');
+};
+let submitted=0;
+$('#btnSubmit').onclick=()=>{
+  submitted++;
+  toast('200 {id, session_id, submitted_at, replaced:'+(submitted>1)+'} —— upsert：重复提交=更新旧行（UNIQUE(task_id,student_id)）');
+};
+renderVers();
+</script>
+</body>
+</html>

@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>训练页 · 思辨工坊原型</title>
+<style>
+:root{--bd:#d0d7de;--bg:#f6f8fa;--ink:#1f2328;--mut:#57606a;--acc:#0969da;--warn:#9a6700;--warnbg:#fff8c5;--ok:#1a7f37;--err:#cf222e}
+*{box-sizing:border-box}
+body{margin:0;font:14px/1.65 system-ui,"Segoe UI","Microsoft YaHei",sans-serif;color:var(--ink);background:var(--bg)}
+.wrap{max-width:1060px;margin:0 auto;padding:0 16px 48px}
+.bar{position:sticky;top:0;background:var(--warnbg);border-bottom:1px solid #d4a72c66;padding:8px 16px;font-size:12.5px;z-index:10}
+.bar code{background:#fff;padding:1px 5px;border-radius:3px;font-size:11.5px;margin-right:2px}
+h1{font-size:20px;margin:20px 0 4px}
+.sub{color:var(--mut);font-size:13px;margin-bottom:16px}
+.card{background:#fff;border:1px solid var(--bd);border-radius:8px;padding:14px 16px;margin-bottom:14px}
+.card h2{font-size:15px;margin:0 0 10px}
+.badge{display:inline-block;padding:1px 8px;border-radius:10px;font-size:12px;border:1px solid var(--bd);background:#fff}
+.b-waiting{background:#ddf4ff;border-color:#54aeff66;color:#0550ae}
+.b-generating{background:#fff1e5;border-color:#fb8f4466;color:#bc4c00}
+.b-paused{background:#f5f0ff;border-color:#a475f966;color:#6639ba}
+.b-final{background:#dafbe1;border-color:#4ac26b66;color:#116329}
+.b-draft{background:#f6f8fa;color:var(--mut)}
+.b-unver{background:var(--warnbg);border-color:#d4a72c;color:var(--warn)}
+.role{display:inline-block;padding:2px 10px;border-radius:4px;font-weight:600;font-size:12px}
+.r-student{background:#ddf4ff;color:#0550ae}
+.r-teacher{background:#ffe9d9;color:#bc4c00}
+button{font:inherit;padding:6px 14px;border:1px solid var(--bd);border-radius:6px;background:#f6f8fa;cursor:pointer;margin:2px 4px 2px 0}
+button:hover{background:#eef1f4}
+button.primary{background:var(--acc);color:#fff;border-color:var(--acc)}
+button:disabled{opacity:.4;cursor:not-allowed}
+input,textarea,select{font:inherit;padding:6px 10px;border:1px solid var(--bd);border-radius:6px;background:#fff}
+textarea{width:100%;min-height:64px;resize:vertical;margin-bottom:8px}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{border:1px solid var(--bd);padding:6px 10px;text-align:left;vertical-align:top}
+th{background:#f6f8fa;font-weight:600}
+.muted{color:var(--mut);font-size:12.5px}
+.foot{border:1px dashed var(--bd);border-radius:8px;padding:12px 16px;margin-top:24px;background:#fff}
+.foot h2{font-size:13px;margin:0 0 6px;color:var(--mut)}
+.foot ul{margin:0;padding-left:18px}
+.foot li{font-size:12.5px;color:var(--mut);margin:2px 0}
+.toast{position:fixed;right:16px;bottom:16px;background:#1f2328;color:#fff;padding:10px 16px;border-radius:8px;font-size:13px;max-width:460px;box-shadow:0 4px 16px #0003;display:none;z-index:99;white-space:pre-line}
+.toast.err{background:var(--err)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:860px){.grid2{grid-template-columns:1fr}}
+.msg{border:1px solid var(--bd);border-radius:8px;padding:10px 12px;margin-bottom:10px;background:#fff}
+.msg .head{display:flex;gap:8px;align-items:center;font-size:12px;color:var(--mut);margin-bottom:4px;flex-wrap:wrap}
+.msg.user{border-left:3px solid var(--acc)}
+.msg.coach{border-left:3px solid var(--ok)}
+.msg.judge{border-left:3px solid #8250df}
+.quote{background:#f6f8fa;border-left:3px solid var(--mut);padding:4px 10px;font-size:12.5px;color:var(--mut);margin:6px 0;border-radius:0 4px 4px 0}
+.kv{display:flex;gap:18px;flex-wrap:wrap;font-size:13px}
+.kv b{color:var(--mut);font-weight:600}
+a{color:var(--acc)}
+</style>
+</head>
+<body>
+<div class="bar">
+  <b>[原型·假数据]</b> 角色：<span class="role r-student">学生</span>（会话 owner）· 页面：训练页 <code>training.html</code>
+  <div style="margin-top:3px">API：<code>POST /api/sessions</code><code>GET /api/sessions/{id}/messages?after_seq=</code><code>POST /api/sessions/{id}/messages</code><code>GET /api/sessions/{id}/events</code>（SSE）<code>POST /api/sessions/{id}/pause</code><code>/resume</code><code>/restart</code><code>/quick</code><code>POST /api/sessions/{id}/coach_turn</code><code>POST /api/sessions/{id}/explore</code><code>POST /api/revisions</code></div>
+</div>
+<div class="wrap">
+<h1>训练页 · 人机论证训练</h1>
+<p class="sub">静态原型：全部数据为假、不发真实请求；端点清单对应 api.md v1.2（G1 漏收端点已补登）。</p>
+
+<div class="card">
+  <h2>会话信息（GET /api/sessions/{id}）</h2>
+  <div class="kv">
+    <span><b>会话</b> #<span id="sid">42</span></span>
+    <span><b>议题</b> 高校应否将 AI 辅助写作纳入学术诚信规范？</span>
+    <span><b>visibility</b> private</span>
+    <span><b>mode/max_turns</b> debate / 1（运行参数不落库，脚注 1）</span>
+    <span><b>状态</b> <span id="st" class="badge b-waiting">waiting</span></span>
+  </div>
+  <p class="muted" style="margin:8px 0 0">假状态机演示：waiting（待学生输入）→ generating（AI 生成中，SSE 推送 speech_* 事件）→ paused（暂停不关流，sse_events §5.3）→ waiting（restart 复位，消息处置由 S2-F6 实现定）。</p>
+</div>
+
+<div class="card">
+  <h2>阶段一 · 议题拆解（POST /api/sessions/{id}/explore → ExploreOut）</h2>
+  <button id="btnExplore">议题拆解（explore）</button>
+  <div id="explore" style="display:none;margin-top:10px">
+    <div class="grid2">
+      <div><b>核心概念 concepts</b><ul><li>学术诚信</li><li>披露义务</li><li>AI 辅助写作</li><li>原创性</li></ul></div>
+      <div><b>讨论范围 scope</b><p>高校课程作业与毕业论文场景；不含企业办公写作。</p></div>
+      <div><b>子问题 subquestions</b><ul><li>披露粒度到工具还是到环节？</li><li>教师如何核验披露真实性？</li><li>未披露但合规使用的边界？</li></ul></div>
+      <div><b>利益相关方 stakeholders</b><ul><li>学生</li><li>任课教师</li><li>教务处</li><li>学术委员会</li></ul></div>
+    </div>
+    <p class="muted">折叠自方案 §8 议题探索页（plan.md §3）；session-scoped，同页更顺。</p>
+  </div>
+</div>
+
+<div class="card">
+  <h2>辩论对话（GET messages 历史 + SSE /events 实时流）</h2>
+  <div id="msgs"></div>
+  <textarea id="inp" placeholder="输入你的观点或回应……（POST /api/sessions/{id}/messages，出参 {seq, created_at}）"></textarea>
+  <button class="primary" id="btnSend">发送（本地渲染）</button>
+  <span class="muted">用户消息由前端本地渲染，不走 SSE 回显（用户 2026-10-13 裁定；sse_events.md §4 补注）。</span>
+</div>
+
+<div class="card">
+  <h2>训练控制（pause / resume / restart / quick / coach_turn / rebuttal）</h2>
+  <div>
+    <button id="btnPause">暂停（pause）</button>
+    <button id="btnResume">续写（resume）</button>
+    <button id="btnRestart">重开（restart）</button>
+    <button id="btnQuick">加速（quick）</button>
+    <button id="btnCoach">教练追问（coach）</button>
+    <button id="btnRebut">反驳我（rebuttal）</button>
+    <button id="btnSave">保存为修改稿（revisions）</button>
+  </div>
+  <p class="muted">pause/quick 仅 generating；resume 仅 paused；restart 于 generating 中 409（先暂停）。错误码见 api.md §3。</p>
+</div>
+
+<div class="card">
+  <h2>观点版本（POST /api/revisions，version 自增 UNIQUE(session_id,version)）</h2>
+  <div id="vers"></div>
+</div>
+
+<div class="foot">
+  <h2>本页未实现交互（留 S2/S3/S4）</h2>
+  <ul>
+    <li>SSE 真实流式推送：speech_start/delta/end、snapshot、回放（after_seq / Last-Event-ID，sse_events.md §7）——S2-4/S2-5</li>
+    <li>真实状态机与 409 校验（S2-2 转移表）；Web 版训练编排器（S2-3）另建——桌面版 debate_logic 五个函数冻结不复用</li>
+    <li>coach_turn 真实 quote_refs 生成（S2-9）；explore 真实调用与 ExploreOut 渲染（S2-7）</li>
+    <li>revisions 服务端存储与 diff_vs_prev 计算（S2-11）；wordcloud 补查入口未演示（graph.html 有）</li>
+    <li>多标签页一致性：用户消息本地渲染，各标签页独立重连回放（MVP 可接受）</li>
+    <li>相关页面：<a href="dashboard.html">工作台</a> · <a href="review.html">复盘页</a> · <a href="graph.html">论证图谱</a></li>
+  </ul>
+</div>
+</div>
+<div class="toast" id="toast"></div>
+<script>
+const S={
+  sid:42,
+  status:'waiting',
+  seq:3,
+  msgs:[
+    {seq:1,role:'user',agent_role:null,t:'10:02',c:'我的主张：高校应把 AI 辅助写作纳入学术诚信规范，明确披露义务。'},
+    {seq:2,role:'assistant',agent_role:'coach',t:'10:02',c:'你提到“明确披露义务”——具体披露什么（用了哪个工具、介入哪些环节）？规则不具体的义务等于没有义务。',focus:'披露粒度',hints:['工具级还是环节级？','谁核验、核验失败怎么办？']},
+    {seq:3,role:'user',agent_role:null,t:'10:03',c:'披露使用的 AI 工具名称与介入环节，例如文献梳理用了哪个工具。'}
+  ],
+  vers:[
+    {v:1,status:'draft',label:'初稿',note:'桌面版导入',diff:null},
+    {v:2,status:'draft',label:'修改稿',note:'补充证据段（seq 7 引用）',diff:'+证据段'}
+  ],
+  coachPool:[
+    {c:'你把“披露”当成义务本身，但没回答：谁核验、核验失败怎么办？没有执行机制的规则是倡议不是规范。',focus:'执行机制',hints:['核验责任落在教师还是教务处？','未披露被发现后的处置梯度？']},
+    {c:'你的证据只覆盖“减少申诉”，没覆盖“学习效果”——规范会不会让学生为合规而合规？',focus:'证据覆盖面',hints:['找反例：合规优先挤压论证训练？']},
+    {c:'反方最强的一点你还没回应：标注依赖学生自觉，而自觉恰好是最不可靠的变量。',focus:'未回应问题',hints:['技术核验手段？','抽检制度？']}
+  ],
+  rebutPool:[
+    {c:'反驳：如果披露义务让学生花时间写披露声明而不是写论证，规范本身就损害了它想保护的能力。',focus:'反例',hints:['回应方向：披露成本 vs 收益']},
+    {c:'反驳：“某校试点下降四成”是相关不是因果——同期可能有其他政策同时生效。',focus:'因果强度',hints:['回应方向：补充对照或标注待核实']}
+  ]
+};
+const $=s=>document.querySelector(s);
+function now(){const d=new Date();return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');}
+let tmr;
+function toast(m,err){const t=$('#toast');t.textContent=m;t.className='toast'+(err?' err':'');t.style.display='block';clearTimeout(tmr);tmr=setTimeout(()=>t.style.display='none',3600);}
+function render(){
+  const st=$('#st');
+  st.textContent=S.status;
+  st.className='badge b-'+S.status;
+  $('#btnPause').disabled=S.status!=='generating';
+  $('#btnQuick').disabled=S.status!=='generating';
+  $('#btnResume').disabled=S.status!=='paused';
+  $('#btnRestart').disabled=S.status==='generating';
+  $('#msgs').innerHTML=S.msgs.map(m=>{
+    const cls=m.role==='user'?'user':(m.agent_role==='judge'?'judge':'coach');
+    const who=m.role==='user'?'学生':(m.agent_role==='judge'?'裁判':'AI 教练');
+    let h='<div class="msg '+cls+'"><div class="head"><b>'+who+'</b>';
+    if(m.agent_role)h+=' <span class="badge">'+m.agent_role+'</span>';
+    h+='<span>seq '+m.seq+'</span><span>'+m.t+'</span></div><div>'+m.c+'</div>';
+    if(m.quote)h+='<div class="quote">quote_refs：引用学生 seq '+m.quote.seq+' 原文“'+m.quote.q+'”（GET /api/messages/{seq} 可反查）</div>';
+    if(m.focus)h+='<div class="muted">focus：'+m.focus+(m.hints?' · hints：'+m.hints.join(' / '):'')+'</div>';
+    return h+'</div>';
+  }).join('');
+  $('#vers').innerHTML='<table><tr><th>version</th><th>status</th><th>标签</th><th>diff_vs_prev</th><th>说明</th></tr>'+
+    S.vers.map(v=>'<tr><td>v'+v.v+'</td><td><span class="badge '+(v.status==='final'?'b-final':'b-draft')+'">'+v.status+'</span></td><td>'+v.label+'</td><td>'+(v.diff||'—（首版 null）')+'</td><td>'+v.note+'</td></tr>').join('')+'</table>';
+}
+$('#btnSend').onclick=()=>{
+  if(S.status!=='waiting'){toast('409：会话非 waiting（messages 提交于非 waiting，状态机错位）',1);return;}
+  const t=$('#inp').value.trim();
+  if(!t){toast('422：content 为空（pydantic 校验）',1);return;}
+  S.seq++;S.msgs.push({seq:S.seq,role:'user',agent_role:null,t:now(),c:t});
+  $('#inp').value='';S.status='generating';render();
+  toast('201 {seq:'+S.seq+', created_at} —— 同步写 messages（role=user）→ 异步 waiting→generating → SSE 推送下一轮');
+  setTimeout(()=>{
+    S.seq++;
+    const p=S.coachPool[(S.msgs.length/2|0)%S.coachPool.length];
+    S.msgs.push({seq:S.seq,role:'assistant',agent_role:'coach',t:now(),c:p.c,focus:p.focus,hints:p.hints,quote:{seq:S.seq-1,q:t.slice(0,40)+(t.length>40?'…':'')}});
+    S.status='waiting';render();
+    toast('SSE：speech_start → speech_delta* → speech_end(complete)（假流式演示，真实见 sse_events.md）');
+  },900);
+};
+$('#btnPause').onclick=()=>{if(S.status!=='generating'){toast('409：非 generating',1);return;}S.status='paused';toast('200 {status:"paused"} —— SSE 侧随即 speech_end(paused_truncated)，流不关');render();};
+$('#btnResume').onclick=()=>{if(S.status!=='paused'){toast('409：非 paused',1);return;}S.status='generating';toast('200 {status:"generating"} —— SSE 重发 speech_start（同 seq）续写');render();};
+$('#btnRestart').onclick=()=>{if(S.status==='generating'){toast('409：generating 中（先暂停）',1);return;}S.status='waiting';toast('200 {id, status:"waiting"} —— 重开：状态复位（消息处置由 S2-F6 实现定）');render();};
+$('#btnQuick').onclick=()=>{if(S.status!=='generating'){toast('409：非 generating',1);return;}S.status='waiting';toast('200 {id, status} —— 加速：当前消息立即定稿推进 → SSE speech_end(complete)，顺序保证不变');render();};
+$('#btnCoach').onclick=()=>{const p=S.coachPool[(S.msgs.length/2|0)%S.coachPool.length];const last=S.msgs.filter(m=>m.role==='user').pop();S.seq++;S.msgs.push({seq:S.seq,role:'assistant',agent_role:'coach',t:now(),c:p.c,focus:p.focus,hints:p.hints,quote:{seq:last.seq,q:last.c.slice(0,40)+(last.c.length>40?'…':'')}});render();toast('200 {question, focus, hints[], quote_refs:[{seq,quote}]} —— coach 模式');};
+$('#btnRebut').onclick=()=>{const p=S.rebutPool[(S.msgs.length/3|0)%S.rebutPool.length];const last=S.msgs.filter(m=>m.role==='user').pop();S.seq++;S.msgs.push({seq:S.seq,role:'assistant',agent_role:'con',t:now(),c:p.c,focus:p.focus,hints:p.hints,quote:{seq:last.seq,q:last.c.slice(0,40)+(last.c.length>40?'…':'')}});render();toast('200 {question, focus, hints[], quote_refs:[{seq,quote}]} —— rebuttal 模式');};
+$('#btnSave').onclick=()=>{S.vers.push({v:S.vers.length+1,status:'draft',label:'修改稿',note:'本轮对话后修订',diff:'+回应段'});render();toast('POST /api/revisions → 201 {id, version:'+S.vers.length+', status:"draft", diff:null}');};
+$('#btnExplore').onclick=()=>{const e=$('#explore');e.style.display=e.style.display==='none'?'block':'none';if(e.style.display==='block')toast('200 {concepts[], scope, subquestions[], stakeholders[]} —— ExploreOut（S2-7 独立 schema）');};
+render();
+</script>
+</body>
+</html>

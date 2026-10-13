@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>论证图谱页 · 思辨工坊原型</title>
+<style>
+:root{--bd:#d0d7de;--bg:#f6f8fa;--ink:#1f2328;--mut:#57606a;--acc:#0969da;--warn:#9a6700;--warnbg:#fff8c5;--ok:#1a7f37;--err:#cf222e}
+*{box-sizing:border-box}
+body{margin:0;font:14px/1.65 system-ui,"Segoe UI","Microsoft YaHei",sans-serif;color:var(--ink);background:var(--bg)}
+.wrap{max-width:1060px;margin:0 auto;padding:0 16px 48px}
+.bar{position:sticky;top:0;background:var(--warnbg);border-bottom:1px solid #d4a72c66;padding:8px 16px;font-size:12.5px;z-index:10}
+.bar code{background:#fff;padding:1px 5px;border-radius:3px;font-size:11.5px;margin-right:2px}
+h1{font-size:20px;margin:20px 0 4px}
+.sub{color:var(--mut);font-size:13px;margin-bottom:16px}
+.card{background:#fff;border:1px solid var(--bd);border-radius:8px;padding:14px 16px;margin-bottom:14px}
+.card h2{font-size:15px;margin:0 0 10px}
+.badge{display:inline-block;padding:1px 8px;border-radius:10px;font-size:12px;border:1px solid var(--bd);background:#fff;margin-right:4px}
+.b-unver{background:var(--warnbg);border-color:#d4a72c;color:var(--warn)}
+.role{display:inline-block;padding:2px 10px;border-radius:4px;font-weight:600;font-size:12px}
+.r-student{background:#ddf4ff;color:#0550ae}
+button{font:inherit;padding:6px 14px;border:1px solid var(--bd);border-radius:6px;background:#f6f8fa;cursor:pointer;margin:2px 4px 2px 0}
+button:hover{background:#eef1f4}
+button.primary{background:var(--acc);color:#fff;border-color:var(--acc)}
+.muted{color:var(--mut);font-size:12.5px}
+.foot{border:1px dashed var(--bd);border-radius:8px;padding:12px 16px;margin-top:24px;background:#fff}
+.foot h2{font-size:13px;margin:0 0 6px;color:var(--mut)}
+.foot ul{margin:0;padding-left:18px}
+.foot li{font-size:12.5px;color:var(--mut);margin:2px 0}
+.toast{position:fixed;right:16px;bottom:16px;background:#1f2328;color:#fff;padding:10px 16px;border-radius:8px;font-size:13px;max-width:460px;box-shadow:0 4px 16px #0003;display:none;z-index:99;white-space:pre-line}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:860px){.grid2{grid-template-columns:1fr}}
+.gwrap{position:relative;height:470px;border:1px solid var(--bd);border-radius:8px;background:#fbfcfd;overflow:auto;min-width:960px}
+.gwrap svg{position:absolute;left:0;top:0;z-index:1}
+.node{position:absolute;z-index:2;background:#fff;border:2px solid var(--bd);border-radius:8px;padding:7px 10px;cursor:pointer;box-shadow:0 1px 3px #0001}
+.node.sel{outline:3px solid var(--acc);outline-offset:2px}
+.n-claim{border-color:#54aeff}.n-evidence{border-color:#4ac26b}.n-rebuttal{border-color:#fb8f44}
+.nt{font-size:11px;font-weight:700;letter-spacing:1px}
+.n-claim .nt{color:#0550ae}.n-evidence .nt{color:#116329}.n-rebuttal .nt{color:#bc4c00}
+.nx{font-size:12.5px;line-height:1.45;margin:2px 0}
+.ns{font-size:11px;color:var(--mut)}
+.empty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--mut);z-index:2}
+.rel{font-size:12px}
+.rel b{display:inline-block;width:64px}
+a{color:var(--acc)}
+</style>
+</head>
+<body>
+<div class="bar">
+  <b>[原型·假数据]</b> 角色：<span class="role r-student">学生</span>（会话 owner）· 页面：论证图谱页 <code>graph.html</code>
+  <div style="margin-top:3px">API：<code>POST /api/sessions/{id}/analyze</code><code>GET /api/sessions/{session_id}/graph</code><code>GET /api/messages/{seq}</code><code>GET /api/sessions/{id}/wordcloud</code></div>
+</div>
+<div class="wrap">
+<h1>论证图谱页 · 论证结构可视化（产品差异点）</h1>
+<p class="sub">静态原型：假 nodes/edges；relation 六枚举取自 errata E-11/schema（支持/反驳/补充/依赖/限制/需要证据），node 带 source_ref 原文定位，verified=false 即“待核实”（§3-3 不确定性可见）。</p>
+
+<div class="card">
+  <h2>论证结构（POST /api/sessions/{id}/analyze → ArgumentMap 扩展）</h2>
+  <button class="primary" id="btnAnalyze">抽取论证结构（analyze）</button>
+  <button id="btnRe">重新抽取</button>
+  <div class="gwrap" id="gw" style="margin-top:10px"><div class="empty">尚未抽取 —— 点击“抽取论证结构”</div></div>
+  <div id="detail" class="muted" style="margin-top:10px">点击任一节点查看 source_ref 原文定位（{message_seq, quote}）。</div>
+</div>
+
+<div class="card">
+  <h2>relation 六枚举图例</h2>
+  <div class="grid2">
+    <div class="rel"><b>支持</b>源节点佐证目标主张</div>
+    <div class="rel"><b>反驳</b>源节点质疑目标主张</div>
+    <div class="rel"><b>补充</b>源节点为目标补足维度</div>
+    <div class="rel"><b>依赖</b>目标成立以前提依赖源节点</div>
+    <div class="rel"><b>限制</b>源节点划定目标适用范围</div>
+    <div class="rel"><b>需要证据</b>源节点尚缺证据支撑</div>
+  </div>
+  <p class="muted">枚举值取自契约（E-11 / api.md analyze 出参）；释义为原型示意，非契约定义。</p>
+</div>
+
+<div class="card">
+  <h2>词云补查入口（GET /api/sessions/{id}/wordcloud，可选）</h2>
+  <button id="btnWc">查看词云</button>
+  <button id="btnWcGen">模拟已生成</button>
+  <div id="wcBox" style="display:none;margin-top:10px;border:1px dashed var(--bd);border-radius:8px;height:120px;display:none;align-items:center;justify-content:center;color:var(--mut)">词云 PNG 占位（/static/wordclouds/session_42.png，StaticFiles 挂载不走 Cookie 鉴权）</div>
+  <p class="muted">未生成 → 404；错过 wordcloud_ready 事件可经本 REST 补查（sse_events §5.6）。</p>
+</div>
+
+<div class="foot">
+  <h2>本页未实现交互（留 S4/S2）</h2>
+  <ul>
+    <li>analyze 真实抽取与落库（argument_nodes / edges / evidence_sources，S4-1/S4-2；POST /api/sessions/{id}/graph 201 {graph_id}）</li>
+    <li>source_ref 反查真实实现：GET /api/messages/{seq}（S4-4）；verified 标记来自抽取时的证据核验状态（S4-3）</li>
+    <li>图谱渲染：原型用手摆 SVG 布局；S2 前端技术栈 echarts（计划书 :317）届时替换</li>
+    <li>词云真实生成（S2 阶段）；教师查看本页图谱随可见集合（private 会话 404，permissions §5）</li>
+    <li>相关页面：<a href="training.html">训练页</a> · <a href="review.html">复盘页</a> · <a href="dashboard.html">工作台</a></li>
+  </ul>
+</div>
+</div>
+<div class="toast" id="toast"></div>
+<script>
+const NODES=[
+ {id:'n1',type:'claim',x:180,y:20,text:'高校应将 AI 辅助写作纳入学术诚信规范',seq:1,quote:'我的主张：高校应把 AI 辅助写作纳入学术诚信规范，明确披露义务。',verified:true},
+ {id:'n5',type:'claim',x:640,y:20,text:'规范应聚焦透明披露而非禁止',seq:11,quote:'修改稿：我认为关键是披露而不是禁止……',verified:true},
+ {id:'n2',type:'evidence',x:30,y:200,text:'某校试点：披露后学术不端申诉下降 40%',seq:7,quote:'某校试点显示披露后申诉下降四成……',verified:false},
+ {id:'n4',type:'evidence',x:300,y:200,text:'研究表明透明规范显著降低规则模糊引发的争议',seq:9,quote:'有研究指出规范明确后争议变少……',verified:true},
+ {id:'n6',type:'claim',x:740,y:200,text:'学生披露 AI 使用不会增加课业负担',seq:11,quote:'披露只是几行字，负担可控。',verified:false},
+ {id:'n3',type:'rebuttal',x:180,y:350,text:'过度依赖 AI 标注会削弱学生自主论证能力',seq:5,quote:'但一刀切标注可能让学生不再自己检查论证……',verified:true}
+];
+const EDGES=[
+ {s:'n2',t:'n1',rel:'支持',verified:true},
+ {s:'n3',t:'n1',rel:'反驳',verified:true},
+ {s:'n5',t:'n1',rel:'补充',verified:true},
+ {s:'n4',t:'n5',rel:'依赖',verified:true},
+ {s:'n3',t:'n2',rel:'限制',verified:false},
+ {s:'n6',t:'n4',rel:'需要证据',verified:false}
+];
+const TN={claim:'主张',evidence:'证据',rebuttal:'反例'};
+const NW=210,NH=86;
+const $=s=>document.querySelector(s);
+let tmr;
+function toast(m,err){const t=$('#toast');t.textContent=m;t.className='toast'+(err?' err':'');t.style.display='block';clearTimeout(tmr);tmr=setTimeout(()=>t.style.display='none',3800);}
+function renderGraph(){
+  const byId={};NODES.forEach(n=>byId[n.id]=n);
+  let svg='<svg width="960" height="470"><defs><marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#8c959f"/></marker></defs>';
+  EDGES.forEach(e=>{
+    const a=byId[e.s],b=byId[e.t];
+    const x1=a.x+NW/2,y1=a.y+NH/2,x2=b.x+NW/2,y2=b.y+NH/2;
+    svg+='<line x1="'+x1+'" y1="'+y1+'" x2="'+x2+'" y2="'+y2+'" stroke="'+(e.verified?'#8c959f':'#d4a72c')+'" stroke-width="'+(e.verified?1.5:1.5)+'" stroke-dasharray="'+(e.verified?'':'5,4')+'" marker-end="url(#ar)"/>';
+    const mx=(x1+x2)/2,my=(y1+y2)/2;
+    svg+='<text x="'+mx+'" y="'+my+'" text-anchor="middle" font-size="12" fill="'+(e.verified?'#57606a':'#9a6700')+'" stroke="#fff" stroke-width="4" paint-order="stroke">'+e.rel+'</text>';
+  });
+  svg+='</svg>';
+  let nodes='';
+  NODES.forEach(n=>{
+    nodes+='<div class="node n-'+n.type+'" id="nd-'+n.id+'" style="left:'+n.x+'px;top:'+n.y+'px;width:'+NW+'px;height:'+NH+'px" onclick="pickNode(\''+n.id+'\')">'
+      +'<div class="nt">'+TN[n.type]+(n.verified?'':' <span class="badge b-unver">待核实</span>')+'</div>'
+      +'<div class="nx">'+n.text+'</div><div class="ns">source_ref: seq '+n.seq+'</div></div>';
+  });
+  $('#gw').innerHTML=svg+nodes;
+}
+function pickNode(id){
+  document.querySelectorAll('.node').forEach(d=>d.classList.remove('sel'));
+  $('#nd-'+id).classList.add('sel');
+  const n=NODES.find(x=>x.id===id);
+  $('#detail').innerHTML='<b>source_ref</b>：message_seq='+n.seq+' · quote=“'+n.quote+'”<br><span class="muted">原文反查：GET /api/messages/{'+n.seq+'}（S4-4）；verified='+n.verified+(n.verified?'':'（待核实，§3-3 不确定性可见）')+'</span>';
+}
+$('#btnAnalyze').onclick=()=>{renderGraph();toast('200 {nodes:[{id,type,text,source_ref:{message_seq,quote}}], edges:[{source,target,relation}]} —— analyze 假响应（ArgumentMap 扩展，E-11）');};
+$('#btnRe').onclick=()=>{renderGraph();toast('重新抽取：节点/边重新生成（真实实现 S4-1/S4-2 落库）');};
+$('#btnWc').onclick=()=>{toast('404：词云未生成（演示 404 分支；真实为静态文件不存在）',1);};
+$('#btnWcGen').onclick=()=>{const b=$('#wcBox');b.style.display='flex';toast('200 {url:"/static/wordclouds/session_42.png"} —— SSE wordcloud_ready 之外的 REST 补查入口');};
+</script>
+</body>
+</html>

@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>首页工作台 · 思辨工坊原型</title>
+<style>
+:root{--bd:#d0d7de;--bg:#f6f8fa;--ink:#1f2328;--mut:#57606a;--acc:#0969da;--warn:#9a6700;--warnbg:#fff8c5}
+*{box-sizing:border-box}
+body{margin:0;font:14px/1.65 system-ui,"Segoe UI","Microsoft YaHei",sans-serif;color:var(--ink);background:var(--bg)}
+.wrap{max-width:1060px;margin:0 auto;padding:0 16px 48px}
+.bar{position:sticky;top:0;background:var(--warnbg);border-bottom:1px solid #d4a72c66;padding:8px 16px;font-size:12.5px;z-index:10}
+.bar code{background:#fff;padding:1px 5px;border-radius:3px;font-size:11.5px;margin-right:2px}
+h1{font-size:20px;margin:20px 0 4px}
+.sub{color:var(--mut);font-size:13px;margin-bottom:16px}
+.card{background:#fff;border:1px solid var(--bd);border-radius:8px;padding:14px 16px;margin-bottom:14px}
+.card h2{font-size:15px;margin:0 0 10px}
+.badge{display:inline-block;padding:1px 8px;border-radius:10px;font-size:12px;border:1px solid var(--bd);background:#fff;margin-right:4px}
+.role{display:inline-block;padding:2px 10px;border-radius:4px;font-weight:600;font-size:12px}
+.r-student{background:#ddf4ff;color:#0550ae}.r-teacher{background:#fff8c5;color:var(--warn)}
+.ok{background:#dafbe1;color:#1a7f37}.deg{background:#fff8c5;color:var(--warn)}
+button{font:inherit;padding:6px 14px;border:1px solid var(--bd);border-radius:6px;background:#f6f8fa;cursor:pointer;margin:2px 4px 2px 0}
+button:hover{background:#eef1f4}
+button.primary{background:var(--acc);color:#fff;border-color:var(--acc)}
+.muted{color:var(--mut);font-size:12.5px}
+.foot{border:1px dashed var(--bd);border-radius:8px;padding:12px 16px;margin-top:24px;background:#fff}
+.foot h2{font-size:13px;margin:0 0 6px;color:var(--mut)}
+.foot ul{margin:0;padding-left:18px}
+.foot li{font-size:12.5px;color:var(--mut);margin:2px 0}
+.toast{position:fixed;right:16px;bottom:16px;background:#1f2328;color:#fff;padding:10px 16px;border-radius:8px;font-size:13px;max-width:480px;box-shadow:0 4px 16px #0003;display:none;z-index:99;white-space:pre-line}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:860px){.grid2{grid-template-columns:1fr}}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{border:1px solid var(--bd);padding:6px 8px;text-align:left}
+th{background:#f6f8fa;font-weight:600}
+input,select{font:inherit;padding:5px 8px;border:1px solid var(--bd);border-radius:6px;width:100%;margin:2px 0}
+label{font-size:12.5px;color:var(--mut);display:block;margin-top:6px}
+a{color:var(--acc)}
+.hdr{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin:20px 0 12px}
+.hdr select{width:auto}
+</style>
+</head>
+<body>
+<div class="bar">
+  <b>[原型·假数据]</b> 页面：首页工作台 <code>dashboard.html</code>
+  <div style="margin-top:3px">API：<code>GET /api/auth/me</code><code>GET /api/history</code><code>GET /api/courses</code><code>POST /api/courses</code><code>POST /api/courses/join</code><code>POST /api/tasks/{id}/join</code><code>POST /api/sessions</code><code>GET /api/health</code></div>
+</div>
+<div class="wrap">
+<div class="hdr">
+  <div>
+    <h1 style="margin:0">首页工作台（双角色）</h1>
+    <span class="sub">方案 §8 第 2 页：登录与角色入口折叠进本页页眉（httpOnly Cookie 对 JS 不可见，无独立登录页）；历史与导出折叠于此（导出端点留 S2-F8）。</span>
+  </div>
+  <div>
+    <label style="margin:0">模拟身份（假数据切换）</label>
+    <select id="who" onchange="render()"><option value="student">学生 · 张三（roles=[student]）</option><option value="teacher">教师 · 王老师（roles=[teacher]）</option></select>
+  </div>
+</div>
+
+<div id="stu" class="grid2">
+  <div class="card">
+    <h2>我的训练（GET /api/history）</h2>
+    <table id="histTbl"><tr><th>id</th><th>topic</th><th>status</th><th>updated</th></tr></table>
+    <p class="muted">owner 视角（S2-12）；点击行 → <a href="training.html">训练页</a>。</p>
+  </div>
+  <div class="card">
+    <h2>加入课程（POST /api/courses/join）</h2>
+    <label>invite_code</label>
+    <input id="inv" value="WRONG9">
+    <button onclick="joinCourse(true)">用错码加入（演示 403）</button>
+    <button class="primary" onclick="joinCourse(false)">用正确码 DEMO01 加入（幂等 200）</button>
+    <p class="muted">403 错码对称化（errata E-12）；重复加入仍 200。</p>
+  </div>
+  <div class="card">
+    <h2>加入任务（POST /api/tasks/201/join）</h2>
+    <label>join_code</label>
+    <input id="jct" value="XK7M2QP">
+    <button onclick="joinTask('ok')">加入（200 {course_id, task_id}）</button>
+    <button onclick="joinTask('403')">错码（403 对称化 E-12）</button>
+    <button onclick="joinTask('410')">已过 deadline（410）</button>
+  </div>
+  <div class="card">
+    <h2>创建训练会话（POST /api/sessions）</h2>
+    <label>topic</label><input id="tp" value="高校应不应该禁止 AI 代写论文">
+    <label>visibility</label>
+    <select id="vis"><option value="private">private</option><option value="task">task</option></select>
+    <label>task_id（visibility=task 时必填，E-2）</label>
+    <input id="tid" placeholder="task_id">
+    <button class="primary" style="margin-top:6px" onclick="createSess()">创建会话</button>
+    <p class="muted">默认值 mode="debate" max_turns=1；private→仅本人可见（教师 404）。</p>
+  </div>
+  <div class="card">
+    <h2>我的课程（GET /api/courses —— 学生→已加入）</h2>
+    <table id="cStuTbl"><tr><th>id</th><th>name</th><th>term</th></tr></table>
+  </div>
+</div>
+
+<div id="tea" class="grid2" style="display:none">
+  <div class="card">
+    <h2>我的课程（GET /api/courses —— 教师→本人教的）</h2>
+    <table id="cTeaTbl"><tr><th>id</th><th>name</th><th>invite_code</th></tr></table>
+    <p class="muted">invite_code 仅教师响应保留（api.md:56）。</p>
+  </div>
+  <div class="card">
+    <h2>创建课程（POST /api/courses）</h2>
+    <label>name</label><input id="cn" value="2026 秋·论证与探究">
+    <label>description（可选）</label><input id="cd" placeholder="课程描述">
+    <button class="primary" style="margin-top:6px" onclick="createCourse()">创建课程</button>
+    <p class="muted">201 {id, name, invite_code, …}；invite_code 服务端生成 6~8 位 A-Z0-9 剔 I/O/0/1。</p>
+  </div>
+  <div class="card" style="grid-column:1/-1">
+    <h2>快捷入口</h2>
+    <a href="teacher_tasks.html"><button>教师任务页 →</button></a>
+    <span class="muted">任务管理 / 班级汇总（S3）。</span>
+  </div>
+</div>
+
+<div class="card">
+  <h2>服务探针（GET /api/health —— 匿名可读）</h2>
+  <span class="badge ok">mysql: ok</span> <span class="badge deg">model_gateway: degraded</span>
+  <button onclick="toast('GET /api/health → 200 {mysql:"ok", model_gateway:"degraded"} —— 降级也 200，状态在 body（S2-13）')">手动探活</button>
+  <p class="muted">前端徽标（S2-F9）。</p>
+</div>
+
+<div class="foot">
+  <h2>本页未实现交互（留 S2/S3）</h2>
+  <ul>
+    <li>登录/注册真实流程（POST /api/auth/register、/login、GET /api/auth/me；JWT 存 httpOnly Cookie，E-10；本页用假数据切换身份）</li>
+    <li>历史导出（方案 §8 第 10 页，导出无 API 端点，S2-F8）；旧会话删除走归档（E-8）</li>
+    <li>真实 join/创建落库与会话状态机（S2-2/S3-2/S3-3）；可见集合校验（E-2 应用层）</li>
+    <li>相关页面：<a href="training.html">训练页</a> · <a href="review.html">复盘页</a> · <a href="graph.html">论证图谱页</a> · <a href="teacher_tasks.html">教师任务页</a></li>
+  </ul>
+</div>
+</div>
+<div class="toast" id="toast"></div>
+<script>
+let tmr;
+function toast(m){const t=document.querySelector('#toast');t.textContent=m;t.style.display='block';clearTimeout(tmr);tmr=setTimeout(()=>t.style.display='none',4000);}
+const HIST=[{id:7,topic:'高校应不应该禁止 AI 代写论文',st:'finished',up:'2026-10-12 21:03'},{id:8,topic:'算法推荐是否加剧信息茧房',st:'generating',up:'2026-10-13 09:15'},{id:9,topic:'远程办公能否提升高校科研效率',st:'waiting',up:'2026-10-13 10:40'}];
+const CSTU=[{id:101,name:'2026 秋·论证与探究',term:'2026-秋'}];
+const CTEA=[{id:101,name:'2026 秋·论证与探究',code:'DEMO01'}];
+function render(){
+  const w=document.getElementById('who').value;
+  document.getElementById('stu').style.display=w==='student'?'':'none';
+  document.getElementById('tea').style.display=w==='teacher'?'':'none';
+  document.getElementById('histTbl').innerHTML='<tr><th>id</th><th>topic</th><th>status</th><th>updated</th></tr>'+HIST.map(h=>'<tr><td>'+h.id+'</td><td>'+h.topic+'</td><td>'+h.st+'</td><td>'+h.up+'</td></tr>').join('');
+  document.getElementById('cStuTbl').innerHTML='<tr><th>id</th><th>name</th><th>term</th></tr>'+CSTU.map(c=>'<tr><td>'+c.id+'</td><td>'+c.name+'</td><td>'+c.term+'</td></tr>').join('');
+  document.getElementById('cTeaTbl').innerHTML='<tr><th>id</th><th>name</th><th>invite_code</th></tr>'+CTEA.map(c=>'<tr><td>'+c.id+'</td><td>'+c.name+'</td><td>'+c.code+'</td></tr>').join('');
+}
+render();
+function joinCourse(bad){toast(bad?'POST /api/courses/join {invite_code:"WRONG9"} → 403 加入码错误（E-12 对称化）':'POST /api/courses/join {invite_code:"DEMO01"} → 200 {course_id:101}（幂等：重复加入仍 200）');}
+function joinTask(r){const code=document.getElementById('jct').value;toast(r==='ok'?'POST /api/tasks/201/join {join_code:"'+code+'"} → 200 {course_id:101, task_id:201}':r==='403'?'403 加入码错误（E-12 对称化；课程 join 404→403）':'410 任务已过 deadline（deadline=2026-10-20，演示过期分支）');}
+function createSess(){const tp=document.getElementById('tp').value,vis=document.getElementById('vis').value,tid=document.getElementById('tid').value;
+  if(vis==='task'&&!tid){toast('422：visibility="task" 但 task_id 为空（E-2 应用层校验 validate_session_visibility）');return;}
+  toast('POST /api/sessions {topic:"'+tp+'", visibility:"'+vis+'", task_id:'+(tid||'null')+'} → 201 {id:10, status:"waiting"} → 跳 <a href="training.html">训练页</a>');}
+function createCourse(){const n=document.getElementById('cn').value;CTEA.push({id:102,name:n,code:'QK9M4XP'});render();toast('POST /api/courses {name:"'+n+'"} → 201 {id:102, invite_code:"QK9M4XP"}');}
+</script>
+</body>
+</html>
