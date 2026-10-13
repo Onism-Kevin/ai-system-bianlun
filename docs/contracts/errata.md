@@ -118,3 +118,28 @@
 - **连带**：S1-7 API 契约不引用 Authorization 头；sse_events.md §9 已回填
   方案 A；S2-F1 axios 同源零配置（跨源兜底 withCredentials）。
 - **日期/拍板人**：用户，2026-10-12（S1-8 审阅）。
+
+## E-11 stage_outputs schema 修订（analyze/coach）：edge.type→relation 取代 + 字段增补
+
+- **原文问题**：S0-5 `backend/app/schemas/stage_outputs.py` 的 `ArgumentMap`
+  （edge.type∈support/attack，无 source_ref）与 S2-8 验收
+  （edge.relation∈{支持,反驳,补充,依赖,限制,需要证据} + 节点 source_ref；S2-F5 引用跳转依赖 source_ref）冲突；
+  `CoachTurn`（question/focus/hints）缺 S2-9 验收要求的"针对学生原文的引用"字段。
+- **取代为**：**edge.type 字段被 edge.relation 取代**——字段名 + 枚举值全变，两字段**不并存**
+  （勿理解为并存的扩展）；新 edge 字段 `relation` 取中文六枚举
+  {支持,反驳,补充,依赖,限制,需要证据}（**与 S4 图谱契约共用同一枚举**，S4-2/S4-4 同源）；
+  node 侧为纯增字段 `source_ref:{message_seq, quote}`。
+  `CoachTurn` 增 `quote_refs:[{seq, quote}]`。`DecomposeOut` 保持不变（spike/mini-bench 用途）；
+  explore 端点使用独立 schema `ExploreOut`（concepts/scope/subquestions/stakeholders，S1-7 用户裁定）。
+- **范围**：仅 Pydantic schema 与 API 出参；不动 S0-3b mini-bench 已验证的 prompts 字段契约。
+- **日期/拍板人**：用户，2026-10-12（S1-7 审阅）。
+
+## E-12 加入码错误码对称化：课程 join 错码 404 → 403
+
+- **原文问题**：permissions.md §3 原文"403 唯一例外：任务加入码错误"，导致课程 join
+  （`POST /api/courses/join`）错码按兜底走 404，与任务 join（403，S3-3 验收指定）不对称，
+  前端提示语义分裂。
+- **取代为**：两个 join 端点（`POST /api/courses/join`、`POST /api/tasks/{id}/join`）错码一律 **403**；
+  permissions §3 例外条款改为"加入码错误（课程/任务 join）"。无效码不暴露存在性细节
+  （错误体 detail 只说"加入码无效"，不区分"码不存在/已失效"）。
+- **日期/拍板人**：用户，2026-10-12（S1-7 审阅）。
