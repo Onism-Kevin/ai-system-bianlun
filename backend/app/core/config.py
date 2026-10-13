@@ -48,6 +48,8 @@ class Settings(BaseSettings):
 
     # --- 应用 ---
     jwt_secret: SecretStr
+    # JWT 有效期（天）。S2-1 定 7 天（用户任务书）；可用环境变量 JWT_EXPIRE_DAYS 覆盖。
+    jwt_expire_days: int = 7
     app_env: EnvName = "dev"
 
     def sqlalchemy_url(self):

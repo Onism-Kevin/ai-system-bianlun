@@ -1,10 +1,26 @@
-"""思辨工坊 backend 应用入口（S0-2 骨架）。
+"""思辨工坊 backend 应用入口（S0-2 骨架；S2-1 挂载 auth 路由）。
 
-当前仅提供 /api/health 骨架与应用组装；业务路由随 S2 逐步挂载。
+- 业务路由随 S2 逐步挂载（S2-1：/api/auth/register|login|me）；
+- CORS 允许 Vite dev 源 http://localhost:5173 且带凭据——Cookie 鉴权的
+  前提（permissions.md §6.3：allow_origins 禁 *，必须 allow_credentials=True；
+  CSRF 由 SameSite=Lax + 写操作 Content-Type: application/json 缓解）。
 """
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
+from app.api import auth
 
 app = FastAPI(title="思辨工坊", version="0.0.1")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173"],  # dev：Vite 源；禁 *（§6.3）
+    allow_credentials=True,  # Cookie 凭据必需（§6.3）
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+app.include_router(auth.router)
 
 
 @app.get("/api/health")
