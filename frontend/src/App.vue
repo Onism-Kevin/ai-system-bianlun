@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import HelloWorld from './components/HelloWorld.vue'
+// S2-F1 骨架：五路由占位（登录/仪表盘/训练/回顾/图谱），业务视图后续任务填充
 </script>
 
 <template>
-  <HelloWorld />
+  <router-view />
 </template>
