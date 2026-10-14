@@ -58,12 +58,36 @@ def test_owner_sees_own_private_session(session):
     assert can_read_session(session, teacher, sess) is True
 
 
+def test_student_owner_sees_own_private_session(session):
+    """E-15/§5.6 ①：owner 本人且角色为学生，读自己的 private 会话 → 可见。"""
+    student = _mk_user(session, "s_owner")
+    sess = _mk_session(session, student, visibility="private")
+    assert can_read_session(session, student, sess) is True
+
+
 def test_non_owner_teacher_private_is_hidden(session):
     """permissions:64：private 会话对非 owner 教师 → 404（存在性隐藏）。"""
     t1 = _mk_user(session, "t1", roles=("teacher",))
     t2 = _mk_user(session, "t2", roles=("teacher",))
     sess = _mk_session(session, t1, visibility="private")
     assert can_read_session(session, t2, sess) is False
+
+
+def test_student_cannot_see_others_private_session(session):
+    """permissions:64：private 会话对非 owner 学生 → 404（学生可见集合=本人会话）。"""
+    s1 = _mk_user(session, "s1")
+    s2 = _mk_user(session, "s2")
+    sess = _mk_session(session, s1, visibility="private")
+    assert can_read_session(session, s2, sess) is False
+
+
+def test_teacher_cannot_see_student_private_session(session):
+    """permissions:64：private 会话对非 owner 教师 → 404（owner 为学生同样拒，
+    与 test_non_owner_teacher_private_is_hidden（owner 为教师）互为对照）。"""
+    teacher = _mk_user(session, "t1", roles=("teacher",))
+    student = _mk_user(session, "s1")
+    sess = _mk_session(session, student, visibility="private")
+    assert can_read_session(session, teacher, sess) is False
 
 
 def test_teacher_sees_task_session_of_own_course(session):
