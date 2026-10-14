@@ -1,15 +1,17 @@
-"""S2-3：sessions 端点测试（api.md:28-30 + 用户 2026-10-14 六条约束）。
+"""S2-3：sessions 端点测试（api.md:28-30 + 用户 2026-10-14 六条约束 + 审追问）。
 
 覆盖清单（用户要求的最小集：创建 → 404 越权 → PATCH 非 owner 404 →
-PATCH status 拒；外加 E-2 422、分层 403、存在性隐藏各分支）：
+PATCH status 拒；外加 E-2 422、分层 403、task 归属 404、存在性隐藏）：
 - 创建：201 + 初始 waiting + 默认 private/task_id=None；401 未登录；
   mode/max_turns 运行参数被接受；topic/visibility 校验 422；
-  E-2 双向违反 422；task 存在/未归档校验 422。
-- GET：owner 200（七字段齐）；不存在 404；private 非 owner（学生/教师）
+  E-2 双向违反 422；task 不存在/已归档 422；task 跨用户引用 404
+  （课程教师本人/成员可引用）；task 归属教师本人路径 201。
+- GET：owner 200（七字段平铺）；不存在 404；private 非 owner（学生/教师）
   404；task 会话课程教师 200、其他教师 404。
 - PATCH：status 字段 422（状态机独占）；非 owner 学生 404；课程教师
-  对学生 task 会话 403（分层裁定）；owner 改 topic 200；E-2 合并违反
-  422；task→private 切换 200；不存在 404；未知字段 422。
+  对学生 task 会话 403（分层裁定）；owner 改 topic 200（平铺出参，
+  E-17）；E-2 合并违反 422；task→private 切换 200；task 跨用户引用
+  404；不存在 404；未知字段 422。
 """
 from __future__ import annotations
 
@@ -17,7 +19,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 from app.core.security import create_access_token
-from app.models.course import Course
+from app.models.course import Course, CourseMember
 from app.models.session import TrainingSession
 from app.models.task import Task
 from app.models.user import User, UserRole
@@ -61,6 +63,12 @@ def _make_task(
     session.add(task)
     session.flush()
     return task
+
+
+def _join_course(session: Session, student: User, course: Course) -> None:
+    """学生加入课程（S3-3 join API 的 DB 侧等价物：course_members 行）。"""
+    session.add(CourseMember(course_id=course.id, user_id=student.id))
+    session.flush()
 
 
 def _auth(client: TestClient, user: User) -> None:
@@ -155,9 +163,11 @@ def test_create_private_with_task_id_422(client: TestClient, session: Session) -
 
 
 def test_create_task_visibility_valid(client: TestClient, session: Session) -> None:
+    """成员学生引用课程 task → 201（S3-3 join 后学生路径的 S2 模拟）。"""
     alice = _make_user(session, "alice")
     teacher = _make_user(session, "teacher", roles=("teacher",))
     course = _make_course(session, teacher, "CRS00002")
+    _join_course(session, alice, course)
     task = _make_task(session, course, join_code="JN000001")
     _auth(client, alice)
     resp = client.post(
@@ -169,6 +179,48 @@ def test_create_task_visibility_valid(client: TestClient, session: Session) -> N
     assert row is not None
     assert row.visibility == "task"
     assert row.task_id == task.id
+
+
+def test_create_task_by_owner_teacher_201(client: TestClient, session: Session) -> None:
+    """教师本人引用自己课程的 task → 201（归属：course.teacher_id==本人）。"""
+    teacher = _make_user(session, "teacher", roles=("teacher",))
+    course = _make_course(session, teacher, "CRS00009")
+    task = _make_task(session, course)
+    _auth(client, teacher)
+    resp = client.post(
+        "/api/sessions",
+        json={"topic": "教师个人任务练习", "visibility": "task", "task_id": task.id},
+    )
+    assert resp.status_code == 201
+
+
+def test_create_task_cross_teacher_404(client: TestClient, session: Session) -> None:
+    """追问 2 裁定：跨教师引用 → 404 存在性隐藏（不暴露归属细节）。"""
+    alice = _make_user(session, "alice")
+    teacher1 = _make_user(session, "teacher1", roles=("teacher",))
+    teacher2 = _make_user(session, "teacher2", roles=("teacher",))
+    course = _make_course(session, teacher1, "CRS00010")
+    task = _make_task(session, course)
+    _auth(client, teacher2)  # teacher2 引用 teacher1 课程的 task
+    resp = client.post(
+        "/api/sessions",
+        json={"topic": "跨教师引用", "visibility": "task", "task_id": task.id},
+    )
+    assert resp.status_code == 404
+
+
+def test_create_task_student_non_member_404(client: TestClient, session: Session) -> None:
+    """非成员学生引用 task → 404（S2 无 join API，成员表恒空）。"""
+    bob = _make_user(session, "bob")
+    teacher = _make_user(session, "teacher", roles=("teacher",))
+    course = _make_course(session, teacher, "CRS00011")
+    task = _make_task(session, course)
+    _auth(client, bob)
+    resp = client.post(
+        "/api/sessions",
+        json={"topic": "非成员引用", "visibility": "task", "task_id": task.id},
+    )
+    assert resp.status_code == 404
 
 
 def test_create_task_not_found_422(client: TestClient, session: Session) -> None:
@@ -254,6 +306,7 @@ def test_get_task_session_teacher_of_course_200(
     alice = _make_user(session, "alice")
     teacher = _make_user(session, "teacher", roles=("teacher",))
     course = _make_course(session, teacher, "CRS00004")
+    _join_course(session, alice, course)
     task = _make_task(session, course)
     _auth(client, alice)
     created = client.post(
@@ -272,6 +325,7 @@ def test_get_task_session_other_teacher_404(client: TestClient, session: Session
     teacher = _make_user(session, "teacher", roles=("teacher",))
     other = _make_user(session, "other_teacher", roles=("teacher",))
     course = _make_course(session, teacher, "CRS00005")
+    _join_course(session, alice, course)
     task = _make_task(session, course)
     _auth(client, alice)
     created = client.post(
@@ -314,6 +368,7 @@ def test_patch_teacher_readable_task_session_403(
     alice = _make_user(session, "alice")
     teacher = _make_user(session, "teacher", roles=("teacher",))
     course = _make_course(session, teacher, "CRS00006")
+    _join_course(session, alice, course)
     task = _make_task(session, course)
     _auth(client, alice)
     created = client.post(
@@ -326,16 +381,24 @@ def test_patch_teacher_readable_task_session_403(
 
 
 def test_patch_owner_topic_200(client: TestClient, session: Session) -> None:
-    """api.md:30：owner 改 topic → 200 {session}（外层包裹，同 S2-1 {user}）。"""
+    """api.md:30 + E-17：owner 改 topic → 200 平铺（与 GET 同构）。"""
     alice = _make_user(session, "alice")
     _auth(client, alice)
     created = client.post("/api/sessions", json={"topic": "旧题"}).json()
     resp = client.patch(f"/api/sessions/{created['id']}", json={"topic": "新题"})
     assert resp.status_code == 200
     body = resp.json()
-    assert set(body) == {"session"}
-    assert body["session"]["topic"] == "新题"
-    assert body["session"]["status"] == "waiting"  # 状态不动
+    assert set(body) == {
+        "id",
+        "topic",
+        "visibility",
+        "task_id",
+        "status",
+        "created_at",
+        "updated_at",
+    }
+    assert body["topic"] == "新题"
+    assert body["status"] == "waiting"  # 状态不动
     row = session.get(TrainingSession, created["id"])
     assert row is not None
     assert row.topic == "新题"
@@ -358,6 +421,7 @@ def test_patch_task_to_private_200(client: TestClient, session: Session) -> None
     alice = _make_user(session, "alice")
     teacher = _make_user(session, "teacher", roles=("teacher",))
     course = _make_course(session, teacher, "CRS00008")
+    _join_course(session, alice, course)
     task = _make_task(session, course)
     _auth(client, alice)
     created = client.post(
@@ -369,8 +433,31 @@ def test_patch_task_to_private_200(client: TestClient, session: Session) -> None
         json={"visibility": "private", "task_id": None},
     )
     assert resp.status_code == 200
-    assert resp.json()["session"]["visibility"] == "private"
-    assert resp.json()["session"]["task_id"] is None
+    body = resp.json()
+    assert body["visibility"] == "private"
+    assert body["task_id"] is None
+
+
+def test_patch_task_cross_teacher_404(client: TestClient, session: Session) -> None:
+    """PATCH 挂他人课程的 task（归属不符）→ 404（同 POST 裁定）。"""
+    alice = _make_user(session, "alice")
+    teacher1 = _make_user(session, "teacher1", roles=("teacher",))
+    teacher2 = _make_user(session, "teacher2", roles=("teacher",))
+    course1 = _make_course(session, teacher1, "CRS00012")
+    course2 = _make_course(session, teacher2, "CRS00013")
+    _join_course(session, alice, course1)
+    task1 = _make_task(session, course1)
+    task2 = _make_task(session, course2)
+    _auth(client, alice)
+    created = client.post(
+        "/api/sessions",
+        json={"topic": "任务练习", "visibility": "task", "task_id": task1.id},
+    ).json()
+    resp = client.patch(
+        f"/api/sessions/{created['id']}",
+        json={"visibility": "task", "task_id": task2.id},
+    )
+    assert resp.status_code == 404
 
 
 def test_patch_nonexistent_404(client: TestClient, session: Session) -> None:

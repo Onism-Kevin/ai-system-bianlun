@@ -4,10 +4,9 @@
   visibility="private", task_id=null}；mode/max_turns 为运行参数（脚注 1：
   不落表），本层接收默认值后仅透传给后续运行轨（S2-6 消费）。
 - POST 出参（api.md:28）：{id, status}，一律 201（脚注 3 取代计划书 200）。
-- GET/PATCH 出参（api.md:29/30）：{id, topic, visibility, task_id, status,
-  created_at, updated_at}；PATCH 字面为 {session}——按 S2-1 同款约定
-  （auth/login:27 {user} → LoginResponse{user}）实现为 {"session": {...}}
-  外层包裹。
+- GET/PATCH 出参（api.md:29/30）：平铺 {id, topic, visibility, task_id,
+  status, created_at, updated_at}；PATCH 原字面 {session} 按 errata E-17
+  改为平铺（与 GET 同构，同一 session 对象只有一种结构）。
 - PATCH 入参（api.md:30）：{topic?, visibility?, task_id?}；status 不在
   其中（状态机独占，pause/resume/restart/quick 走 S2-6）——收到 status
   字段显式报 422，避免静默忽略。
@@ -82,9 +81,3 @@ class SessionOut(BaseModel):
     status: str
     created_at: datetime
     updated_at: datetime
-
-
-class SessionPatchResponse(BaseModel):
-    """PATCH 出参（api.md:30 字面 {session}，同 S2-1 LoginResponse{user} 约定）。"""
-
-    session: SessionOut
