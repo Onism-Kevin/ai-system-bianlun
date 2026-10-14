@@ -19,3 +19,15 @@ export interface MeResponse {
   user: AuthUser
   roles: string[]
 }
+
+// 与 backend/app/schemas/session.py 对应（S2-3，api.md:28）
+export interface SessionCreated {
+  id: number
+  status: string
+}
+
+export interface SessionCreateBody {
+  topic: string
+  visibility?: 'private' | 'task'
+  task_id?: number | null
+}
