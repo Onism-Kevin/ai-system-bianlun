@@ -20,6 +20,7 @@ export function describeApiError(err: unknown): string {
   if (status === 401) return '用户名或密码错误'
   if (status === 403) return describe403(data)
   if (status === 410) return '任务已过截止时间，无法加入'
+  if (status === 404) return describe404(data)
   if (status === 409) return '用户名已被占用'
   if (status === 422) return describeValidation(data)
   if (status !== undefined && status >= 500) return '服务器繁忙，请稍后再试'
@@ -30,6 +31,12 @@ function describe403(data: unknown): string {
   const detail = (data as { detail?: unknown } | undefined)?.detail
   if (typeof detail === 'string' && detail) return detail
   return '没有权限执行此操作'
+}
+
+function describe404(data: unknown): string {
+  const detail = (data as { detail?: unknown } | undefined)?.detail
+  if (typeof detail === 'string' && detail) return detail
+  return '资源不存在或无权访问'
 }
 
 /** 401 判定：登录态失效，视图层据此跳 /login（不展示文案）。 */
