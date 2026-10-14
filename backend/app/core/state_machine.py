@@ -45,6 +45,12 @@ SESSION_STATES: tuple[str, ...] = (
     "failed",
 )
 
+# 初始态（S2-3 复用）：会话创建即为 waiting（api.md:28 创建返回 status +
+# api.md:35 messages 行为）——创建本身不自动进入 generating，等首条消息提交。
+# schema_v2 sessions.status DEFAULT waiting 是 DB 兜底，应用层显式写本常量。
+INITIAL_STATE = "waiting"
+assert INITIAL_STATE in SESSION_STATES
+
 # 事件 → 合法目标态集合；多目标即参数化转移（transition 的 target 必填）
 TRANSITIONS: dict[str, dict[str, tuple[str, ...]]] = {
     "waiting": {
