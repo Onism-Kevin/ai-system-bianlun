@@ -178,3 +178,33 @@
 - **落地约束**：S2-2 及后续 sessions 端点实现按此优先级，注释引用
   consistency_check:66 + permissions:63/64。
 - **日期/拍板人**：用户，2026-10-13（S2-1 收口审阅）。
+
+## E-17 api.md:30 PATCH /api/sessions/{id} 出参 {session} → 平铺（取代）
+
+- **原文问题**：api.md 契约自身不一致——GET /api/sessions/{id}（:29）返回平铺
+  七字段 `{id, topic, visibility, task_id, status, created_at, updated_at}`，
+  PATCH（:30）却写 `200 {session}` 包裹。同一个 session 对象不该有两种出参结构，
+  前端需为两套结构各写一份序列化。
+- **取代为**：PATCH 200 出参**平铺**，与 GET 同构——"api.md:30 的 {session} 应为
+  平铺，与 GET /api/sessions/{id} 同构。PATCH 返回更新后的 session 对象，语义上
+  应与 GET 一致。"
+- **落地**：S2-3 `backend/app/schemas/session.py` 删 SessionPatchResponse 包裹层；
+  `backend/app/api/sessions.py` update_session 直接返回 SessionOut；
+  `backend/tests/api/test_sessions.py` 出参断言改平铺七字段。
+- **日期/拍板人**：用户，2026-10-14（S2-3 审阅回复，追问 1）。
+
+## E-18 S2-2/S2-3/S2-4 任务内容重分配记录（备案，非取代）
+
+- **实际实现**：
+  - S2-2 = 状态机基座 + can_read_session（state_machine.py 五态转移表 +
+    全矩阵穷举测试；can_read_session owner 优先级）；
+  - S2-3 = sessions 端点（POST 创建 / GET 详情 / PATCH 修改，api.md:28-30）；
+  - S2-4 = SSE 端点 + 编排器 + messages 落库。
+- **偏差理由**：状态机先于端点（依赖方向：端点消费状态机而非相反）；
+  编排器依赖 SSE（并入 S2-4 减少往返）。**计划书 v1.1:196 的 S2-3 描述
+  （"训练编排器 debate_runner.py 自由辩论 + messages 落库"）按本勘误理解：
+  编排器部分归 S2-4。**
+- **连带**：S2-3 另含 task 归属校验（跨用户引用 → 404，存在性隐藏，permissions §3；
+  用户 2026-10-14 追问 2 裁定）——归属判定 = 课程教师本人或课程成员
+  （course_members，S3-3 join API 填充）。
+- **日期/拍板人**：用户，2026-10-14（S2-3 审阅回复，问题 1 + 追问 2）。
