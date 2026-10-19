@@ -91,7 +91,9 @@ def _replay_frames(
     - 在途（status='streaming'）消息：不重编码，返回其 seq 由调用方发
       snapshot（§7.3 即时语义）；
     - max_replayed_terminal_seq：已回放的最大终态 seq（调用方做 §8
-      二层保险去重）。
+      二层保险去重）；
+    - user/system 行跳过（§4 事件总表 + api.md:35 行为注：用户消息
+      前端本地渲染、不由 SSE 回显；回放只承载 AI 发言）。
     """
     rows = db.scalars(
         select(Message)
@@ -102,6 +104,11 @@ def _replay_frames(
     inflight_seq: int | None = None
     max_terminal_seq: int | None = None
     for row in rows:
+        # sse §4 事件总表 + §3：只有 assistant（AI）消息走 speech_* 回放；
+        # user/system 行供 REST 历史与审计（api.md:35 行为注：用户消息
+        # 前端本地渲染、不由 SSE 回显），回放不产生任何事件。
+        if row.role != "assistant":
+            continue
         if row.status == "streaming":
             # 同会话同一时刻至多一条在途（§5.7 末段）；多条时取最后一条
             inflight_seq = row.seq
@@ -134,7 +141,10 @@ def _replay_frames(
 
 
 def _snapshot_frame(db: Session, session_id: int, seq: int) -> str | None:
-    """在途消息 snapshot（§5.4/§7.3）：累积全文 + status。"""
+    """在途消息 snapshot（§5.4/§7.3）：累积全文 + status。
+
+    仅 assistant 行可被传入（回放只收集 AI 在途消息，§4 事件总表）。
+    """
     row = db.get(Message, seq)
     if row is None:
         return None
@@ -230,13 +240,16 @@ def _event_stream(
                 yield _frame("done", {"session_id": session_id, "reason": "finished"})
                 return
             # §8 二层保险：已回放终态 seq 的 speech_* 事件跳过（锁保证
-            # 无丢无重后这是双保险；非 speech 事件 error/done 天然一次）
+            # 无丢无重后这是双保险；非 speech 事件 error/done 天然一次）。
+            # snapshot 例外：在途消息无终态 seq（max_terminal_seq 只按终态
+            # 行更新），回放阶段已发的 snapshot 由 §8 锁保证不重发。
             seq = event.get("seq")
             if (
                 seq is not None
                 and max_terminal_seq is not None
                 and seq <= max_terminal_seq
                 and event["event"] in _SPEECH_EVENTS
+                and event["event"] != "speech_snapshot"
             ):
                 continue
             frame = _frame(
