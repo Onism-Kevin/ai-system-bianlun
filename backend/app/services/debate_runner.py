@@ -43,6 +43,11 @@ from app.services.session_registry import SessionParams, session_registry
 
 logger = logging.getLogger(__name__)
 
+# pause 挂起等待 resume 的上限（秒）。超时 = runner 放弃本轮退出，消息留
+# paused_truncated、session 留 paused，客户端可再次 resume（届时 provider
+# 无法从中途续接生成，S5+ 持久化断点待办，见 S2-6 设计裁定 8）。
+_RESUME_TIMEOUT = 1800.0
+
 # SSE error code 映射（sse_events.md §5.7 表）：code, retryable, fatal
 _ERROR_CODES: dict[type[Exception], tuple[str, bool, bool]] = {
     exceptions.ModelConnectionError: ("model_connection", True, True),
@@ -104,6 +109,18 @@ def _turns_done(db: Session, session_id: int) -> int:
         )
         or 0
     )
+
+
+def plan_finalize_target(db: Session, session_id: int, max_turns: int) -> str:
+    """speech_end_complete / quick 共用的轮次判定（S2-6 设计 §2.4）。
+
+    max_turns 用完 → finished；还有剩余轮次 → waiting。本轮消息刚置
+    终态（端点 quick / runner 收尾），直接计入：turns_done + 1。
+    与 `_finalize_complete` 同一公式——两处漂移会造出端点与 runner
+    轮次判定不一致的 bug，故抽共用函数。
+    """
+    turns_done = _turns_done(db, session_id) + 1
+    return "finished" if turns_done >= max_turns else "waiting"
 
 
 def _insert_assistant_message(
@@ -171,6 +188,10 @@ def run_generation(
 
     # runner 临界区（§8）：history 读 → INSERT/commit → publish 全程持锁，
     # 与 SSE 端点临界区互斥，保证无丢无重。
+    # S2-6 补充：整轮持锁改为「逐 chunk 锁」（暂停挂起必须锁外，否则
+    # pause/resume/restart/quick 四端点全部死锁——见 S2-6 设计 §3.1）。
+    controller = event_bus.controller(session_id)
+    controller.clear_control_flags()  # 新轮开始，旧控制信号作废（裁定 5）
     with event_bus.session_lock(session_id):
         history = _load_history(db, session_id)  # 先读：不含本轮 assistant 消息
         seq = _insert_assistant_message(db, session_id, agent_role=agent_role)
@@ -201,16 +222,23 @@ def _run_generation_locked(
     max_turns: int,
     prompt_messages: list[dict],
 ) -> None:
-    """持会话锁的执行体：落库→publish 逐 chunk，收尾转移 + 错误分类。"""
-    event_bus.publish(
-        session_id,
-        {
-            "event": "speech_start",
-            "session_id": session_id,
-            "seq": seq,
-            "agent_role": agent_role,
-        },
-    )
+    """执行体：建流 start → 逐 chunk 落库+publish → 收尾转移 + 错误分类。
+
+    S2-6 起函数名中的 "locked" 只覆盖 start/收尾两段临界区（S2-4 §8），
+    chunk 循环自身为「逐 chunk 锁 + 锁外挂起」结构（S2-6 设计 §3.1）：
+    runner 在 chunk 边界停手后若处于 pause，必须锁外等待 resume——
+    整轮持锁会死锁 pause/resume 端点（它们要同一把 per-session 锁）。
+    """
+    with event_bus.session_lock(session_id):
+        event_bus.publish(
+            session_id,
+            {
+                "event": "speech_start",
+                "session_id": session_id,
+                "seq": seq,
+                "agent_role": agent_role,
+            },
+        )
 
     message = db.get(Message, seq)
     if message is None:  # 防御：刚 commit 的行不存在=实现 bug
@@ -223,28 +251,26 @@ def _run_generation_locked(
     non_fatal: tuple[str, str] | None = None
 
     try:
-        for chunk in provider.generate_stream(model=model, messages=prompt_messages):
-            if not chunk:
-                continue
-            # chunk 边界自查（补充 2：BackgroundTasks 不可取消，S2-6 pause/quick
-            # 端点置位后 runner 在边界停；本任务只预留检查点与 break 路径，
-            # 暂停专属收尾（paused_truncated + session→paused）由 S2-6 落）
-            if controller.pause_requested or controller.cancel_requested:
-                break
-            parts.append(chunk)
-            message.content = "".join(parts)
-            db.commit()  # 每 chunk 落库（§6：snapshot/回放读 DB 即当前全文）
-            event_bus.publish(
-                session_id,
-                {
-                    "event": "speech_delta",
-                    "session_id": session_id,
-                    "seq": seq,
-                    "delta": chunk,
-                },
+        # 生成器跨 pause 保留挂定点（Python 生成器语义）——「同 seq 续写」
+        # 的载体（sse §5.3）。暂停后 runner 不退出、不关流。
+        stream = provider.generate_stream(model=model, messages=prompt_messages)
+        while True:
+            stop_reason = _consume_stream(
+                db, session_id, stream, seq=seq, message=message, parts=parts
             )
-            if controller.quick_requested:
+            if stop_reason != "pause":
                 break
+            # pause：挂起等待 resume（锁外！§3.1）。唤醒后复查 flag：
+            # 若是 restart 的 cancel → 退出本轮（端点已截断消息）；否则
+            # 续写（resume 端点已重发 speech_start + 消息回 streaming）。
+            controller.clear_resume()
+            if not controller.wait_resume(_RESUME_TIMEOUT):
+                logger.warning("resume 等待超时: session_id=%s seq=%s", session_id, seq)
+                return  # 消息留 paused_truncated；超时自动恢复记 S5+（裁定 8）
+            if controller.cancel_requested:
+                controller.cancel_requested = False  # 自清除（§3.3）
+                logger.info("pause 中被 restart 取消: session_id=%s seq=%s", session_id, seq)
+                return
     except Exception as exc:  # noqa: BLE001 —— 按 §5.7 四类+internal 分类统一处理
         code, retryable, fatal = _classify_error(exc)
         if fatal:
@@ -281,6 +307,8 @@ def _run_generation_locked(
         )
         return
 
+    # pause/quick/cancel 的收尾（消息定稿 + session 转移 + speech_end）由
+    # 端点完成（S2-6 裁定 3）；能走到这里只可能是生成器自然耗尽。
     _finalize_complete(
         db,
         session_id,
@@ -289,6 +317,50 @@ def _run_generation_locked(
         mode=mode,
         max_turns=max_turns,
     )
+
+
+def _consume_stream(
+    db: Session,
+    session_id: int,
+    stream,
+    *,
+    seq: int,
+    message: Message,
+    parts: list[str],
+) -> str | None:
+    """消费生成器一段：逐 chunk 锁内 commit→publish；返回停手原因或 None。
+
+    返回："pause"（pause_requested，调用方挂起等 resume）/ "quick" /
+    "cancel"（restart）/ None（生成器耗尽）。S2-6 起各停手收尾均由
+    端点完成，本函数只负责"停手"。
+    """
+    controller = event_bus.controller(session_id)
+    for chunk in stream:
+        if not chunk:
+            continue
+        # chunk 边界自查（S2-4 检查点，S2-6 置位逻辑补齐）。pause/cancel
+        # 在 content 落库前检查：停手后端点读到的 content 即截断点。
+        if controller.pause_requested or controller.cancel_requested:
+            return "pause" if controller.pause_requested else "cancel"
+        # quick 检查点必须在本 chunk 的 commit/publish **之前**（S2-6
+        # 裁定 4）：否则端点 quick 收尾（speech_end complete）之后还会
+        # 有一个 delta，违反 §4「同一 seq 事件严格有序」。
+        if controller.quick_requested:
+            return "quick"
+        parts.append(chunk)
+        message.content = "".join(parts)
+        with event_bus.session_lock(session_id):
+            db.commit()  # 每 chunk 落库（§6：snapshot/回放读 DB 即当前全文）
+            event_bus.publish(
+                session_id,
+                {
+                    "event": "speech_delta",
+                    "session_id": session_id,
+                    "seq": seq,
+                    "delta": chunk,
+                },
+            )
+    return None
 
 
 def _finalize_complete(
@@ -308,9 +380,8 @@ def _finalize_complete(
 
     # 轮次判定（§2）：max_turns 用完 → finished；还有剩余轮次 → waiting
     # （等学生下一条输入，api.md:35 只有 waiting 接受新 messages）。
-    # 本轮消息刚置 complete（下一行 commit 前），直接计入：turns_done + 1。
-    turns_done = _turns_done(db, session_id) + 1
-    target = "finished" if turns_done >= max_turns else "waiting"
+    # 与端点 quick 共用 plan_finalize_target（S2-6 裁定 4：同一公式防漂移）。
+    target = plan_finalize_target(db, session_id, max_turns)
 
     message.status = "complete"
     try:

@@ -37,13 +37,44 @@ _DONE_SENTINEL = object()
 class SessionController:
     """§4 控制通道：S2-6 端点置位，runner 在 chunk 边界自查。
 
-    pause/quick/cancel 三个 flag + 一个 threading.Event。S2-4 只定义
-    结构并暴露检查点（runner 每 chunk 后检查一次），置位逻辑属 S2-6。
+    pause/quick/cancel 三个 flag + 一个 threading.Event（S2-4 设计 §4 原
+    规划结构，S2-4 只落了 flag 与检查点，S2-6 补齐 Event 与封装方法）。
+
+    flag 生命周期（S2-6 设计 §3.3）：
+    - pause_requested：pause 端点置位 → runner 停手并挂起 → resume 端点清除；
+    - quick_requested：quick 端点置位 → runner 停手退出；残留由下一轮
+      run_generation 入口统一清除；
+    - cancel_requested：restart 端点置位（仅可能唤醒挂起 runner 时）→
+      runner 醒后消费并自清除；无挂起 runner 时的残留同样由下一轮入口清；
+    - resume_event：pause 挂起 / resume 唤醒的载体（Event.set 唤醒）。
+
+    线程模型：端点在 HTTP 线程置位/发信号，runner 在 BackgroundTasks
+    线程消费——bool/Event 的置位-检查无需额外锁（GIL 原子性）。
     """
 
     pause_requested: bool = False
     quick_requested: bool = False
     cancel_requested: bool = False
+    resume_event: threading.Event = field(default_factory=threading.Event)
+
+    def signal_resume(self) -> None:
+        """resume/restart 端点调用：唤醒挂起的 runner（幂等，无等待者也无害）。"""
+        self.resume_event.set()
+
+    def clear_resume(self) -> None:
+        """runner 挂起前调用：清掉上一轮的旧唤醒信号（防 resume 端点先到）。"""
+        self.resume_event.clear()
+
+    def wait_resume(self, timeout: float) -> bool:
+        """runner 挂起等待 resume；超时/被唤醒返回 True（runner 唤醒后自行复查 flag）。"""
+        return self.resume_event.wait(timeout)
+
+    def clear_control_flags(self) -> None:
+        """新一轮 run_generation 入口调用：旧控制信号全部作废（S2-6 裁定 5）。"""
+        self.pause_requested = False
+        self.quick_requested = False
+        self.cancel_requested = False
+        self.resume_event.clear()
 
 
 @dataclass

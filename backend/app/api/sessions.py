@@ -29,6 +29,31 @@ S2-4 扩展（同文件，路由前缀共用）：
 - GET /{session_id}/messages（api.md:38）：历史分页（after_seq+limit）。
 - GET /{session_id}/events（api.md:42）：SSE 流（见 api/events.py 挂载，
   E-19：读路径 403 无触发路径，统一 404）。
+
+S2-6 扩展（同文件）：POST /{session_id}/{pause,resume,restart,quick}
+（api.md:31-34）四控制端点：
+- 统一动作序列（S2-6 设计 §2）：鉴权分层（404→403）→ 状态机前置校验
+  → 持 per-session event_bus.session_lock 做「读在途消息 + 改消息
+  status + 状态机转移 + commit + publish」原子段 → 返回。
+- pause：在途消息置 paused_truncated + 置位 pause_requested + publish
+  speech_end(paused_truncated)；runner 在 chunk 边界停手并**锁外挂起**
+  等 resume（run_generation 整轮持锁会死锁本端点，故 S2-6 起 runner
+  锁粒度=逐 chunk，见 debate_runner._consume_stream）。
+- resume：截断消息回 streaming + 清 pause_requested + signal_resume
+  唤醒 + publish speech_start（同 seq 重发，§5.1）续写。
+- restart：仅状态复位（*→waiting，generating 中 409），**消息全保留**
+  （api.md:33：消息处置由 S2-F6 实现定）；cancel_requested + signal_resume
+  唤醒可能的挂起 runner。
+- quick：在途消息置 complete + 置位 quick_requested + 轮次判定
+  （plan_finalize_target，与 _finalize_complete 共用公式）→ waiting/
+  finished + publish speech_end(complete)；轮尽补 done(finished) +
+  publish_done() 关流（§7 步骤 7）。
+- quick 在 paused 的语义：**409**（api.md:80 脚注 4 已裁定回填）——跨
+  线程无法保证先落库后发事件，要求先 resume 再 quick。
+- 404 会话不存在或 private 越权；403 非 owner（课程教师可读 task
+  会话但不可代学生控制，permissions §4 字面）；409 状态机错位
+  （api.md:92 清单：pause 非 generating、resume 非 paused、restart
+  于 generating 中、quick 非 generating）。
 """
 from __future__ import annotations
 
@@ -38,7 +63,7 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import can_read_session, get_current_user
 from app.core.database import get_db
-from app.core.state_machine import INITIAL_STATE
+from app.core.state_machine import INITIAL_STATE, IllegalTransition, transition
 from app.models.course import Course, CourseMember
 from app.models.message import Message
 from app.models.session import TrainingSession, validate_session_visibility
@@ -54,9 +79,11 @@ from app.schemas.session import (
     SessionCreate,
     SessionCreated,
     SessionOut,
+    SessionStatusOut,
     SessionUpdate,
 )
-from app.services.debate_runner import build_provider, run_generation
+from app.services.debate_runner import build_provider, plan_finalize_target, run_generation
+from app.services.event_bus import event_bus as _event_bus
 from app.services.session_registry import SessionParams, session_registry
 
 router = APIRouter(prefix="/api/sessions", tags=["sessions"])
@@ -90,6 +117,78 @@ _TASK_NOT_AVAILABLE = HTTPException(
     status_code=status.HTTP_404_NOT_FOUND,
     detail="任务不存在或无权访问",
 )
+# S2-6 四端点错误分层（api.md:31-34 行字面 + §3:90 模式同 PATCH）：
+# pause/quick 要求 generating；resume 要求 paused；restart 禁 generating
+# （"先生成中，请先暂停"）。状态机 IllegalTransition 一律映射 409。
+_CONFLICT_NOT_GENERATING = HTTPException(
+    status_code=status.HTTP_409_CONFLICT,
+    detail="仅生成中可暂停/加速",
+)
+_CONFLICT_NOT_PAUSED = HTTPException(
+    status_code=status.HTTP_409_CONFLICT,
+    detail="会话当前未处于暂停态",
+)
+_CONFLICT_GENERATING = HTTPException(
+    status_code=status.HTTP_409_CONFLICT,
+    detail="生成中，请先暂停",
+)
+# 防御：generating/paused 却无在途消息=实现 bug（不向客户端暴露细节）
+_INTERNAL_NO_STREAMING = HTTPException(
+    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+    detail="会话状态与消息不一致",
+)
+
+
+def _transition_or_409(
+    session: TrainingSession, event: str, target: str | None = None
+) -> str:
+    """状态机转移 + IllegalTransition → 409（api.md:92 清单字面）。"""
+    try:
+        session.status = (
+            transition(session.status, event)
+            if target is None
+            else transition(session.status, event, target)
+        )
+    except IllegalTransition as exc:
+        raise _CONFLICT_NOT_GENERATING from exc
+    return session.status
+
+
+def _publish(session_id: int, frame: dict) -> None:
+    """事件帧发布（sse §10 先落库后发事件；调用点已在 commit 之后）。
+
+    经单例 _event_bus 发布；_event_bus 是模块级别名，测试 monkeypatch
+    本模块的 `_event_bus` 即可拦截（实例属性优先于类方法）。
+    """
+    _event_bus.publish(session_id, frame)
+
+
+def _latest_assistant_streaming(db: Session, session_id: int) -> Message | None:
+    """最新在途 assistant 消息（status='streaming'）。"""
+    return db.scalars(
+        select(Message)
+        .where(
+            Message.session_id == session_id,
+            Message.role == "assistant",
+            Message.status == "streaming",
+        )
+        .order_by(Message.seq.desc())
+        .limit(1)
+    ).first()
+
+
+def _latest_assistant_paused_truncated(db: Session, session_id: int) -> Message | None:
+    """最新被暂停截断的 assistant 消息（status='paused_truncated'）。"""
+    return db.scalars(
+        select(Message)
+        .where(
+            Message.session_id == session_id,
+            Message.role == "assistant",
+            Message.status == "paused_truncated",
+        )
+        .order_by(Message.seq.desc())
+        .limit(1)
+    ).first()
 
 
 def _task_assignable_to(db: Session, user: User, task: Task) -> bool:
@@ -268,6 +367,191 @@ def submit_message(
 
     background_tasks.add_task(_run)
     return MessageCreated(seq=message.seq, created_at=message.created_at)
+
+
+@router.post("/{session_id}/pause")
+def pause_session(
+    session_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> SessionStatusOut:
+    """暂停生成（api.md:31）：generating → paused，SSE 侧 speech_end(paused_truncated)。
+
+    动作序列（S2-6 设计 §2.1，全部持 per-session 锁）：
+    ① 状态机校验（非 generating → 409）；② 在途消息置
+    paused_truncated（content=当前已 commit 全文=截断点）；③ 置位
+    controller.pause_requested（runner chunk 边界据此停手）；④ 消息 +
+    session 同事务 commit；⑤ commit 后 publish speech_end。先落库后
+    发事件（§10）；与 runner 的 commit→publish 互斥，故本端点读到的
+    content 是唯一确定截断点，speech_end 之后不可能再跟同 seq delta。
+    """
+    session = db.get(TrainingSession, session_id)
+    if session is None or not can_read_session(db, user, session):
+        raise _NOT_FOUND
+    if session.owner_id != user.id:
+        raise _FORBIDDEN_NON_OWNER
+    if session.status != "generating":
+        raise _CONFLICT_NOT_GENERATING
+
+    with _event_bus.session_lock(session_id):
+        if session.status != "generating":
+            raise _CONFLICT_NOT_GENERATING
+        target = _transition_or_409(session, "pause")
+        message = _latest_assistant_streaming(db, session_id)
+        if message is None:  # 防御：generating 却无在途消息=实现 bug
+            raise _INTERNAL_NO_STREAMING
+        message.status = "paused_truncated"
+        _event_bus.controller(session_id).pause_requested = True
+        db.commit()
+        _publish(
+            session_id,
+            {
+                "event": "speech_end",
+                "session_id": session_id,
+                "seq": message.seq,
+                "status": "paused_truncated",
+            },
+        )
+    return SessionStatusOut(id=session.id, status=session.status)
+
+
+@router.post("/{session_id}/resume")
+def resume_session(
+    session_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> SessionStatusOut:
+    """恢复生成（api.md:32）：paused → generating，SSE 重发 speech_start（同 seq）续写。
+
+    动作序列（S2-6 设计 §2.2）：① 状态机校验（非 paused → 409）；
+    ② paused_truncated 在途消息回 streaming（回放/snapshot 语义正确）；
+    ③ 清 pause_requested；④ 同事务 commit；⑤ signal_resume() 唤醒
+    挂起的 runner；⑥ publish speech_start（§5.1 重发，start 不清本地
+    内容，delta 追加即续写）。找不到截断消息（paused 却无在途行）→ 500。
+    """
+    session = db.get(TrainingSession, session_id)
+    if session is None or not can_read_session(db, user, session):
+        raise _NOT_FOUND
+    if session.owner_id != user.id:
+        raise _FORBIDDEN_NON_OWNER
+    if session.status != "paused":
+        raise _CONFLICT_NOT_PAUSED
+
+    with _event_bus.session_lock(session_id):
+        if session.status != "paused":
+            raise _CONFLICT_NOT_PAUSED
+        target = _transition_or_409(session, "resume")
+        message = _latest_assistant_paused_truncated(db, session_id)
+        if message is None:  # 防御：paused 却无截断消息=实现 bug
+            raise _INTERNAL_NO_STREAMING
+        message.status = "streaming"
+        controller = _event_bus.controller(session_id)
+        controller.pause_requested = False
+        db.commit()
+        controller.signal_resume()  # 唤醒挂起的 runner（§5.3 同 seq 续写）
+        _publish(
+            session_id,
+            {
+                "event": "speech_start",
+                "session_id": session_id,
+                "seq": message.seq,
+                "agent_role": message.agent_role,
+            },
+        )
+    return SessionStatusOut(id=session.id, status=session.status)
+
+
+@router.post("/{session_id}/restart")
+def restart_session(
+    session_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> SessionStatusOut:
+    """重开会话（api.md:33）：* → waiting（消息全保留，处置留白 S2-F6）。
+
+    generating 中 → 409（先暂停）；其余态（waiting/paused/finished/
+    failed）均合法。paused 态若 runner 仍挂起（正常路径：pause 端点只
+    置位，runner 停手有毫秒级延迟但已关在锁内，实际不可同时发生），
+    置 cancel + signal_resume 唤醒它退出本轮；无挂起 runner 时的残留
+    由下一轮 run_generation 入口统一清除（S2-6 裁定 5）。
+    """
+    session = db.get(TrainingSession, session_id)
+    if session is None or not can_read_session(db, user, session):
+        raise _NOT_FOUND
+    if session.owner_id != user.id:
+        raise _FORBIDDEN_NON_OWNER
+    if session.status == "generating":
+        raise _CONFLICT_GENERATING
+
+    with _event_bus.session_lock(session_id):
+        if session.status == "generating":
+            raise _CONFLICT_GENERATING
+        _transition_or_409(session, "restart")
+        # 防御：paused 态理论上必有截断消息，此处兜底防脏数据卡住 waiting
+        message = _latest_assistant_paused_truncated(db, session_id)
+        if message is not None:
+            message.status = "complete"  # 消息全保留（api.md:33：处置 S2-F6 定）
+        controller = _event_bus.controller(session_id)
+        controller.cancel_requested = True
+        db.commit()
+        controller.signal_resume()  # 无挂起 runner 也无害（幂等）
+    return SessionStatusOut(id=session_id, status=session.status)
+
+
+@router.post("/{session_id}/quick")
+def quick_session(
+    session_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> SessionStatusOut:
+    """加速定稿（api.md:34 + 脚注 4）：generating → {waiting, finished}。
+
+    动作序列（S2-6 设计 §2.4）：① 状态机校验（非 generating → 409，
+    含 paused——脚注 4 已裁定，要求先 resume）；② 轮次判定（与
+    _finalize_complete 共用 plan_finalize_target：turns_done+1 >=
+    max_turns → finished，否则 waiting）；③ 在途消息置 complete
+    （"立即定稿"=截断到当前全文）；④ 置位 quick_requested；⑤ 同事务
+    commit；⑥ publish speech_end(complete)；轮尽时补 publish
+    done(finished) + publish_done() 关流（§7 步骤 7）。暂停态 409 字面
+    见脚注 4（跨线程无法保证先落库后发事件）。
+    """
+    session = db.get(TrainingSession, session_id)
+    if session is None or not can_read_session(db, user, session):
+        raise _NOT_FOUND
+    if session.owner_id != user.id:
+        raise _FORBIDDEN_NON_OWNER
+    if session.status != "generating":
+        raise _CONFLICT_NOT_GENERATING
+
+    with _event_bus.session_lock(session_id):
+        if session.status != "generating":
+            raise _CONFLICT_NOT_GENERATING
+        params = session_registry.get(session_id)
+        max_turns = params.max_turns if params else 1
+        target = _transition_or_409(
+            session, "quick", plan_finalize_target(db, session_id, max_turns)
+        )
+        message = _latest_assistant_streaming(db, session_id)
+        if message is None:  # 防御：generating 却无在途消息=实现 bug
+            raise _INTERNAL_NO_STREAMING
+        message.status = "complete"
+        _event_bus.controller(session_id).quick_requested = True
+        db.commit()
+        _publish(
+            session_id,
+            {
+                "event": "speech_end",
+                "session_id": session_id,
+                "seq": message.seq,
+                "status": "complete",
+            },
+        )
+        if target == "finished":
+            _publish(
+                session_id, {"event": "done", "session_id": session_id, "reason": "finished"}
+            )
+            _event_bus.publish_done(session_id)
+    return SessionStatusOut(id=session.id, status=session.status)
 
 
 @router.get("/{session_id}/messages")

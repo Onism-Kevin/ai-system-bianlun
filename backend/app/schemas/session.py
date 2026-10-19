@@ -10,6 +10,8 @@
 - PATCH 入参（api.md:30）：{topic?, visibility?, task_id?}；status 不在
   其中（状态机独占，pause/resume/restart/quick 走 S2-6）——收到 status
   字段显式报 422，避免静默忽略。
+- S2-6 出参 SessionStatusOut（api.md:31-34）：pause/resume `{status}`、
+  restart/quick `{id, status}` 逐行不一，统一 {id, status}（见该类 docstring）。
 """
 from __future__ import annotations
 
@@ -61,6 +63,20 @@ class SessionUpdate(BaseModel):
 
 class SessionCreated(BaseModel):
     """POST /api/sessions 出参（api.md:28）：{id, status}（脚注 3：201）。"""
+
+    id: int
+    status: str
+
+
+class SessionStatusOut(BaseModel):
+    """S2-6 控制端点出参（api.md:31-34 行字面）。
+
+    pause/resume 行：200 `{status:"paused"}` / `{status:"generating"}`；
+    restart 行：200 `{id, status:"waiting"}`；quick 行：200 `{id, status}`
+    （轮尽 finished / 否则 waiting）。契约逐行不一（pause/resume 无 id，
+    restart/quick 有），统一用此 schema——id 对 pause/resume 为冗余但
+    无害（客户端已从 URL 知晓 session_id），schema 单一结构更简单。
+    """
 
     id: int
     status: str

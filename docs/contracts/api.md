@@ -77,7 +77,7 @@
 1. `mode`/`max_turns` 为**运行参数**（S2-2/S2-3 验收入参），不落 sessions 表（表无此列）；存储形态（编排器内存 or JSON 列）属 S2-2 实现决策，本契约只约束 API 面与默认值。
 2. 课程/任务 join 错码均为 **403**（对称化，errata E-12；用户 2026-10-12 裁定）。
 3. 计划书 S2-1/S2-3 验收句写 `200 {user}` / `200 {id}`，以本契约为准：register 与 sessions create 均为 **201**（与 courses/tasks/revisions 对齐，用户 2026-10-12 裁定）。
-4. **quick 在暂停态（paused）下的语义留白**：S2-6 实现时定——可选 409（要求先 resume）或自动 resume + quick；两种选择都符合本契约的 409 行（以实现时裁定为准，届时回填本脚注）。
+4. ~~**quick 在暂停态（paused）下的语义留白**~~：**已裁定（S2-6，2026-10-19）：409**——要求先 `POST /resume` 再 quick。理由：paused 态 runner 挂起在另一线程，自动 resume+quick 需"唤醒→等 runner 停手→收尾"三步跨线程，无法在单 HTTP 请求内可靠保证「speech_end(complete) 必在 DB 定稿后」（sse_events §10 先落库后发事件零容忍）。409 后两步各自原子，客户端分两请求完成。
 
 ## 2. SSE 端点
 
