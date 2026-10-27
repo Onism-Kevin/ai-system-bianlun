@@ -301,10 +301,9 @@ async function onRestart() {
   try {
     const res = await restartSession(sessionId.value)
     if (session.value) session.value = { ...session.value, status: res.status }
-    // S2-F6：重开清空消息表（api.md:33 消息处置由 S2-F6 实现定；
-    // 后端消息全保留，前端清屏）。
-    messageMap.value.clear()
-    messageMap.value = new Map(messageMap.value)
+    // S2-F6 / errata E-20：restart 保留消息，只重置 status=waiting。
+    // 消息全保留（训练记录不可恢复）；想全新开始应新建 session。
+    // 消息表不清空——刷新页面后历史消息仍在。
   } catch (err) {
     if (isUnauthorized(err)) {
       router.push('/login')

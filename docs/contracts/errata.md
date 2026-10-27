@@ -223,3 +223,22 @@
   检查，不是 events 的。
 - **落地**：S2-4 events 端点实现：can_read_session 不过 → 404；无 403 分支。
 - **日期/拍板人**：用户，2026-10-14（S2-4 设计纲要审阅，Q4 裁定）。
+
+## E-20 restart 消息处置：保留（取代 S2-F6 前"前端清屏"实现）
+
+- **背景**：api.md:33 restart 行写"消息处置由 S2-F6 实现定"——契约留白。
+  S2-6 后端实现保留消息（只 `paused_truncated→complete` 兜底，无 DELETE），
+  但 S2-F6 前端初版写了 `messageMap.clear()` 清屏，与后端矛盾（UI 空了但
+  刷新后历史消息仍在）。
+- **裁定为（用户，2026-10-27）**：**restart 保留消息，只重置 status=waiting**。
+  - messages 是训练记录，删了不可恢复；
+  - 想全新开始应新建 session，不是 restart；
+  - restart 语义是"重置状态机"不是"清空数据"；
+  - S2-11 revisions、S2-12 历史回放都依赖 messages。
+- **落地**：
+  - 后端（S2-6 已实现）：restart 只改 status=waiting + paused_truncated 兜底
+    complete，无 DELETE——无需改动；
+  - 前端（S2-F6 修复）：删除 `messageMap.clear()`，restart 后消息表不变；
+  - 补测试 `test_restart_preserves_message_count`（errata E-20 专项）：
+    验证 restart 前后消息条数与内容不变。
+- **日期/拍板人**：用户，2026-10-27（S2-F6 审阅追问）。

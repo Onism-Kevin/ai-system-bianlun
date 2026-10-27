@@ -679,3 +679,34 @@ def test_events_replay_completed_message_while_finished(
     # DB 状态不受回放影响（前端守卫的依据：DB 权威值='finished'）
     session.expire_all()
     assert session.get(TrainingSession, sess.id).status == "finished"
+
+
+def test_restart_preserves_message_count(session, client, user_and_headers):
+    """errata E-20：restart 保留消息，只重置 status=waiting。
+
+    验证 restart 前后消息条数与内容不变——无 DELETE。
+    与 test_restart_200_from_non_generating 的"消息一条不少"互补：
+    后者检查 paused_truncated→complete 兜底，本测试检查完整消息集不变。
+    """
+    user, cookies = user_and_headers
+    sess = _make_session(session, user.id, status="finished")
+    # 预置 3 条消息（user + assistant + user）
+    session.add(Message(session_id=sess.id, role="user", content="第一条", status="complete"))
+    session.add(Message(session_id=sess.id, role="assistant", agent_role="con", content="回应一", status="complete"))
+    session.add(Message(session_id=sess.id, role="user", content="第二条", status="complete"))
+    session.commit()
+    session.refresh(sess)
+
+    before = _stream_rows(session, sess.id)
+    assert len(before) == 3
+
+    resp = client.post(f"/api/sessions/{sess.id}/restart", cookies=cookies)
+    assert resp.status_code == 200, resp.text
+    assert resp.json() == {"id": sess.id, "status": "waiting"}
+
+    after = _stream_rows(session, sess.id)
+    assert len(after) == 3  # E-20：消息条数不变（无 DELETE）
+    # 角色与内容不变
+    assert [(r.role, r.content) for r in after] == [
+        (r.role, r.content) for r in before
+    ]
