@@ -2,7 +2,15 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { getSession, listMessages, submitMessage } from '../api/sessions'
+import {
+  getSession,
+  listMessages,
+  submitMessage,
+  pauseSession,
+  resumeSession,
+  restartSession,
+  quickSession,
+} from '../api/sessions'
 import { describeApiError, isUnauthorized } from '../api/errors'
 import { useSSE } from '../composables/useSSE'
 import type { UseSseResult } from '../composables/useSSE'
@@ -15,7 +23,7 @@ import type { SessionOut } from '../api/types'
 // - 用户消息本地渲染，不走 SSE 回显（用户 2026-10-13 裁定，sse §4 补注）
 // - 重连策略（退避/放弃/手动重连）在 useSSE.ts（sse §8）
 // - 错误横幅：流内 error 帧（§5.7）+ REST 错误 + 连接放弃态
-// - 训练控制四按钮：S2-F5 只做禁用态，点击全链路属 S2-F6
+// - 训练控制四按钮：S2-F6 接通 pause/resume/restart/quick 端点 + SSE 驱动 status
 const route = useRoute()
 const router = useRouter()
 
@@ -50,6 +58,14 @@ let sse: UseSseResult | null = null
 // 连接状态展示（useSSE.status 的镜像；模板直接读 sse.status 亦可，此 ref 供
 // v-if 之外的徽标类场景复用，避免 let 变量在模板里的响应式盲区）。
 const sseStatus = ref('idle')
+
+// S2-F6：训练控制 loading 状态（四按钮防连点）
+const controlLoading = ref({
+  pause: false,
+  resume: false,
+  restart: false,
+  quick: false,
+})
 
 onMounted(async () => {
   const rawId = route.query.id
@@ -131,6 +147,8 @@ function connectSse(id: number) {
         status: 'streaming',
         streaming: true,
       })
+      // S2-F6：speech_start → session.status=generating（resume 续写时也重发 start）。
+      if (session.value) session.value = { ...session.value, status: 'generating' }
     },
     onDelta(frame) {
       // §5.2 增量追加
@@ -149,6 +167,14 @@ function connectSse(id: number) {
         streaming: false,
         content: prev?.content ?? '',
       })
+      // S2-F6：speech_end 驱动 session.status 变更：
+      // paused_truncated→paused；complete→waiting（done 事件单独处理 finished/failed）。
+      if (session.value) {
+        session.value = {
+          ...session.value,
+          status: frame.status === 'paused_truncated' ? 'paused' : 'waiting',
+        }
+      }
     },
     onSnapshot(frame) {
       // §5.4：content 整体替换（断线补齐唯一基准+幂等来源）
@@ -166,6 +192,7 @@ function connectSse(id: number) {
     },
     onFatal() {
       errorBanner.value = '本轮生成失败（详见上方错误），连接已关闭。可重新发送消息再试。'
+      if (session.value) session.value = { ...session.value, status: 'failed' }
     },
     onFinished() {
       // quick 轮尽路径服务端已落库 finished，本地同步徽章
@@ -220,6 +247,84 @@ async function onSend() {
   }
 }
 
+// S2-F6：训练控制四按钮 → pause/resume/restart/quick 端点（api.md:31-34）。
+// 错误码分层（api.md §3）：409 状态机错位 / 403 非 owner / 404 / 500 等
+// 全部经 describeApiError 透传 errorBanner。
+// session.status 更新来源：
+//   - pause: SSE speech_end(paused_truncated) 驱动 onEnd→paused
+//   - resume: SSE speech_start 驱动 onStart→generating + API 响应兜底
+//   - quick: SSE speech_end+done 驱动 / API 响应兜底
+//   - restart: API 响应直接更新 + 清空消息表（后端消息全保留）
+async function onPause() {
+  controlLoading.value.pause = true
+  try {
+    await pauseSession(sessionId.value)
+    // session.status 由 SSE speech_end(paused_truncated) 事件驱动
+  } catch (err) {
+    if (isUnauthorized(err)) {
+      router.push('/login')
+      return
+    }
+    errorBanner.value = describeApiError(err)
+  } finally {
+    controlLoading.value.pause = false
+  }
+}
+
+async function onResume() {
+  controlLoading.value.resume = true
+  try {
+    const res = await resumeSession(sessionId.value)
+    // API 响应为准（SSE speech_start 会一并设置 generating）
+    if (session.value) session.value = { ...session.value, status: res.status }
+  } catch (err) {
+    if (isUnauthorized(err)) {
+      router.push('/login')
+      return
+    }
+    errorBanner.value = describeApiError(err)
+  } finally {
+    controlLoading.value.resume = false
+  }
+}
+
+async function onRestart() {
+  controlLoading.value.restart = true
+  try {
+    const res = await restartSession(sessionId.value)
+    if (session.value) session.value = { ...session.value, status: res.status }
+    // S2-F6：重开清空消息表（api.md:33 消息处置由 S2-F6 实现定；
+    // 后端消息全保留，前端清屏）。
+    messageMap.value.clear()
+    messageMap.value = new Map(messageMap.value)
+  } catch (err) {
+    if (isUnauthorized(err)) {
+      router.push('/login')
+      return
+    }
+    errorBanner.value = describeApiError(err)
+  } finally {
+    controlLoading.value.restart = false
+  }
+}
+
+async function onQuick() {
+  controlLoading.value.quick = true
+  try {
+    const res = await quickSession(sessionId.value)
+    // API 响应为准（SSE speech_end+done 会一并设置 finished/waiting）
+    if (session.value) session.value = { ...session.value, status: res.status }
+  } catch (err) {
+    if (isUnauthorized(err)) {
+      router.push('/login')
+      return
+    }
+    errorBanner.value = describeApiError(err)
+  } finally {
+    controlLoading.value.quick = false
+  }
+}
+
 function statusTagType(status: string): 'success' | 'info' | 'warning' | 'danger' | 'primary' {
   if (status === 'generating') return 'warning'
   if (status === 'paused') return 'primary'
@@ -245,7 +350,7 @@ function agentTagType(m: ChatMessage): 'success' | 'info' | 'warning' | 'danger'
 
 // 训练控制禁用态（docs/prototypes/training.html:164-167）：
 // pause/quick 仅 generating；resume 仅 paused；restart 非 generating。
-// 点击全链路属 S2-F6（控制端点 S2-6 已交付）。
+// 点击全链路已接通（S2-F6，控制端点 S2-6）。
 const status = computed(() => session.value?.status ?? 'waiting')
 const canPause = computed(() => status.value === 'generating')
 const canQuick = computed(() => status.value === 'generating')
@@ -353,16 +458,15 @@ const canRestart = computed(() => status.value !== 'generating')
     <el-card>
       <template #header>训练控制</template>
       <div class="controls">
-        <!-- S2-F5 只做禁用态；pause 按钮暂挂锚点跳转演示（scrollToMessage(1)），
-             S2-F6 替换为真控制调用。锚点跳转真实入口在 quote_refs 引用块（S2-9）。 -->
-        <el-button :disabled="!canPause" @click="scrollToMessage(1)">暂停（pause）</el-button>
-        <el-button :disabled="!canResume">续写（resume）</el-button>
-        <el-button :disabled="!canRestart">重开（restart）</el-button>
-        <el-button :disabled="!canQuick">加速（quick）</el-button>
+        <!-- S2-F6：四按钮接通 pause/resume/restart/quick 端点（api.md:31-34）。 -->
+        <el-button :disabled="!canPause" :loading="controlLoading.pause" @click="onPause">暂停（pause）</el-button>
+        <el-button :disabled="!canResume" :loading="controlLoading.resume" @click="onResume">续写（resume）</el-button>
+        <el-button :disabled="!canRestart" :loading="controlLoading.restart" @click="onRestart">重开（restart）</el-button>
+        <el-button :disabled="!canQuick" :loading="controlLoading.quick" @click="onQuick">加速（quick）</el-button>
       </div>
       <p class="muted">
         pause/quick 仅 generating；resume 仅 paused；restart 非 generating。
-        控制端点 S2-6 已交付（pause/resume/restart/quick），按钮点击接入 S2-F6。
+        控制端点 S2-6 已交付（pause/resume/restart/quick），按钮点击已接通（S2-F6）。
       </p>
     </el-card>
   </div>

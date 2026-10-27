@@ -5,6 +5,7 @@ import type {
   SessionCreateBody,
   SessionCreated,
   SessionOut,
+  SessionStatusOut,
 } from './types'
 
 // 与 backend/app/api/sessions.py POST 对应（S2-3，api.md:28：201 {id, status}）。
@@ -37,4 +38,26 @@ export function listMessages(sessionId: number, afterSeq = 0, limit = 200) {
       params: { after_seq: afterSeq, limit },
     })
     .then((res) => res.data)
+}
+
+// ---- S2-F6 训练控制四按钮（api.md:31-34）----
+
+// POST /api/sessions/{id}/pause — api.md:31，409 非 generating
+export function pauseSession(id: number) {
+  return client.post<SessionStatusOut>(`/sessions/${id}/pause`).then((res) => res.data)
+}
+
+// POST /api/sessions/{id}/resume — api.md:32，409 非 paused
+export function resumeSession(id: number) {
+  return client.post<SessionStatusOut>(`/sessions/${id}/resume`).then((res) => res.data)
+}
+
+// POST /api/sessions/{id}/restart — api.md:33，409 generating 中（先暂停）
+export function restartSession(id: number) {
+  return client.post<SessionStatusOut>(`/sessions/${id}/restart`).then((res) => res.data)
+}
+
+// POST /api/sessions/{id}/quick — api.md:34，409 非 generating / 409@paused（脚注 4）
+export function quickSession(id: number) {
+  return client.post<SessionStatusOut>(`/sessions/${id}/quick`).then((res) => res.data)
 }

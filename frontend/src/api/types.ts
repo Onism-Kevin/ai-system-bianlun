@@ -43,6 +43,14 @@ export interface SessionOut {
   updated_at: string
 }
 
+// 与 backend/app/schemas/session.py SessionStatusOut 对应（S2-6 控制端点，api.md:31-34）。
+// 统一 {id, status}：pause/resume 返回 {id, status}（id 冗余但无害），
+// restart/quick 返回 {id, status}。status ∈ waiting/generating/paused/finished/failed。
+export interface SessionStatusOut {
+  id: number
+  status: string
+}
+
 // 与 backend/app/schemas/message.py 对应（S2-4 落库，api.md:35/38）
 export interface MessageCreated {
   seq: number
