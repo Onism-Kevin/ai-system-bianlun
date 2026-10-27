@@ -242,3 +242,17 @@
   - 补测试 `test_restart_preserves_message_count`（errata E-20 专项）：
     验证 restart 前后消息条数与内容不变。
 - **日期/拍板人**：用户，2026-10-27（S2-F6 审阅追问）。
+
+## E-22 stage API 的 StructuredValidationError → 422（补充 api.md:43 错误码列）
+
+- **原文问题**：api.md:43 explore 行错误码列只写"422 空 topic / 超 5000 字"，
+  未列 StructuredValidationError（模型输出坏 JSON，structured.py 重试后仍不合规
+  → SynchronousError → 同步端点映射）。S2-8 analyze / S2-9 coach / S2-10 reports
+  的 stage API 都会有同样的映射。
+- **补充为**：api.md:43 的 422 除空 topic 外，还包括 StructuredValidationError
+  （模型输出坏 JSON，重试后仍不合规）。S2-8/S2-9/S2-10 的 stage API 错误码列
+  同样适用此补充。
+- **理由**：stage API 统一走 structured.generate_structured 链路（S0-4），
+  坏 JSON → 重试 → StructuredValidationError → 同步端点映射 422。
+  统一加一条 errata 比每个端点单独注释好。
+- **日期/拍板人**：用户，2026-10-27（S2-7 审阅追问 2 裁定）。
