@@ -147,8 +147,14 @@ function connectSse(id: number) {
         status: 'streaming',
         streaming: true,
       })
-      // S2-F6：speech_start → session.status=generating（resume 续写时也重发 start）。
-      if (session.value) session.value = { ...session.value, status: 'generating' }
+      // S2-F6：speech_start → session.status 守卫。
+      // 只有当前 status='waiting' 才转 generating（新轮开始，onSend 已乐观设置，
+      // 此为安全网）；paused/finished/failed 收到 speech_start 不转——
+      // 回放（sse §7.1）时服务端重编码历史消息也会发 speech_start，
+      // 但 session.status 已是 DB 权威值，不应被回放覆盖。
+      if (session.value && session.value.status === 'waiting') {
+        session.value = { ...session.value, status: 'generating' }
+      }
     },
     onDelta(frame) {
       // §5.2 增量追加
@@ -168,7 +174,9 @@ function connectSse(id: number) {
         content: prev?.content ?? '',
       })
       // S2-F6：speech_end 驱动 session.status 变更：
-      // paused_truncated→paused；complete→waiting（done 事件单独处理 finished/failed）。
+      // paused_truncated→paused；complete→waiting（done 事件随后处理 finished/failed）。
+      // done 丢失时靠 SSE 重连兜底：15s 内无事件触发 onerror → 手动退避重连 →
+      // 回放发现终态 → done → 关流（sse §8 重连策略）。
       if (session.value) {
         session.value = {
           ...session.value,

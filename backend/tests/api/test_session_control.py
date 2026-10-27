@@ -629,3 +629,53 @@ def test_events_replay_paused_truncated_message(
     assert len(done_indexes) == 1 and done_indexes[0] == len(events) - 1
     # 回放段（done 之前）无 done 帧
     assert "done" not in kinds[:-1]
+
+
+def test_events_replay_completed_message_while_finished(
+    session, client, user_and_headers, monkeypatch
+):
+    """finished 会话回放：completed 消息重编码发 speech_start/end + done。
+
+    前端 onStart 守卫（session.status==='waiting' 才转 generating）依赖此行为：
+    回放的 speech_start 不应改变 session.status（DB 权威值='finished'）。
+    此测试验证服务端回放路径确实发 speech_start（触发前端守卫的输入），
+    且 done(finished) 自动发送（终态不依赖后台 publish_done）。
+    """
+    import app.api.events as events_module
+
+    monkeypatch.setattr(events_module, "_HEARTBEAT_INTERVAL", 0.05)
+    user, cookies = user_and_headers
+    sess = _make_session(session, user.id, status="finished")
+    session.add(
+        Message(
+            session_id=sess.id, role="assistant", agent_role="con",
+            content="已完成的发言", status="complete",
+        )
+    )
+    session.commit()
+    import threading
+    import time
+
+    def _close_later():
+        time.sleep(0.3)
+        event_bus.publish_done(sess.id)
+
+    threading.Thread(target=_close_later, daemon=True).start()
+    with client.stream("GET", f"/api/sessions/{sess.id}/events", cookies=cookies) as r:
+        lines = [line for line in r.iter_lines() if line.strip()]
+    events = _parse_sse(lines)
+    kinds = [e for e, _ in events]
+    # 回放：completed 消息重编码 → speech_start → speech_delta → speech_end
+    assert "speech_start" in kinds
+    assert "speech_delta" in kinds
+    assert "speech_end" in kinds
+    end = next(d for e, d in events if e == "speech_end")
+    assert end["status"] == "complete"
+    # done 由后台 publish_done 哨兵触发（与 session.status 无关）
+    done_indexes = [i for i, (e, _) in enumerate(events) if e == "done"]
+    assert len(done_indexes) == 1 and done_indexes[0] == len(events) - 1
+    # 回放段（done 之前）无 done 帧
+    assert "done" not in kinds[:-1]
+    # DB 状态不受回放影响（前端守卫的依据：DB 权威值='finished'）
+    session.expire_all()
+    assert session.get(TrainingSession, sess.id).status == "finished"
