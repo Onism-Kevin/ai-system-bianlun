@@ -33,6 +33,26 @@ class DecomposeOut(BaseModel):
     con_position: str = Field(description="反方核心立场")
 
 
+# ---------- 1b. 议题探索（S2-7，api.md:43） ----------
+
+
+class ExploreOut(BaseModel):
+    """议题探索：ExploreOut 独立 schema（api.md:43，S1-7 用户裁定，E-11）。
+
+    与 DecomposeOut 不共享——decompose 是 spike/mini-bench 用途（topic/
+    core_dispute/pro_position/con_position）；explore 是 S2-7 端点用途
+    （concepts/scope/subquestions/stakeholders）。不进 STAGE_SCHEMAS。
+
+    前端易失性：explore 结果不落库（MVP 裁定），刷新页面丢失。
+    S2-F7 需处理（sessionStorage 恢复 或 UI 提示）。
+    """
+
+    concepts: list[str] = Field(description="核心概念，每项格式'概念：说明'")
+    scope: str = Field(description="议题讨论的范围与边界")
+    subquestions: list[str] = Field(description="子问题，每项格式'子问题：说明'")
+    stakeholders: list[str] = Field(description="利益相关方，每项格式'群体：说明'")
+
+
 # ---------- 2. 论证结构分析 ----------
 
 NodeType = Literal["claim", "evidence", "rebuttal"]

@@ -1,31 +1,37 @@
-"""S0-5：议题拆解（explore/decompose）prompt 模板。
+"""S0-5 / S2-7：议题探索（explore）prompt 模板。
 
-产出对齐 stage_outputs.DecomposeOut：
-  topic / core_dispute / pro_position / con_position
+S2-7 重写：产出对齐 stage_outputs.ExploreOut（api.md:43，E-11）：
+  concepts / scope / subquestions / stakeholders
 
-策略：强调「只输出 JSON、字段齐全、立场中立」。立场须是可辩的具体主张，
-而非空泛套话，便于后续论证分析与追问直接引用。
+与旧版（DecomposeOut: topic/core_dispute/pro_position/con_position）不同：
+ExploreOut 面向"议题探索"阶段，产出概念/范围/子问题/利益方四要素。
+DecomposeOut 保留给 spike/mini-bench 用途（STAGE_SCHEMAS 不变）。
+
+策略：强调「只输出 JSON、字段齐全、立场中立」。每项格式为"概念：说明"，
+便于前端 S2-F7 拆解显示（标题 + 正文）。
 """
 
 from __future__ import annotations
 
 SYSTEM_PROMPT = (
-    "你是高校论证训练平台的议题拆解助手。"
+    "你是高校论证训练平台的议题探索助手。"
     "你只输出合法 JSON，不输出任何解释、markdown 围栏或前后缀文字。"
-    "你立场中立，准确还原议题双方的真实主张。"
+    "你立场中立，准确还原议题的各方面要素。"
 )
 
-USER_TEMPLATE = """请把下面的议题拆解为结构化 JSON。
-
+USER_TEMPLATE = """请对下面的议题进行探索性拆解，输出结构化 JSON。
 议题：{topic}
 
 要求：
-- topic：议题名，尽量精炼（不超过 30 字）。
-- core_dispute：这个议题真正的分歧点，一句话说透（不是复述议题）。
-- pro_position：正方的核心立场，必须是可辩护的具体主张，不要空泛口号。
-- con_position：反方的核心立场，同样要具体、可辩护。
+- concepts：议题涉及的核心概念或术语。每项格式为"概念名：一句话说明"，
+  例如"学术诚信：指学术研究中遵循诚实、公正原则的行为规范"。
+- scope：议题讨论的范围与边界（哪些在范围内，哪些不在）。
+- subquestions：将议题分解为 3-5 个子问题。每项格式为"子问题：一句话说明"，
+  例如"评价标准：用什么指标衡量学术诚信水平"。
+- stakeholders：议题涉及的利益相关方。每项格式为"群体/角色：一句话说明立场"，
+  例如"学生：关注成绩公平性，反对绝对透明的评分标准"。
 
-只输出 JSON，字段为 topic、core_dispute、pro_position、con_position。"""
+只输出 JSON，字段为 concepts、scope、subquestions、stakeholders。"""
 
 
 def build_messages(topic: str) -> list[dict]:

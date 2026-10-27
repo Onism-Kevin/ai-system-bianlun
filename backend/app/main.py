@@ -10,7 +10,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import auth, events, sessions
+from app.api import auth, events, explore, sessions
 
 app = FastAPI(title="思辨工坊", version="0.0.1")
 
@@ -25,6 +25,7 @@ app.add_middleware(
 app.include_router(auth.router)
 app.include_router(sessions.router)
 app.include_router(events.router)
+app.include_router(explore.router)
 
 
 @app.get("/api/health")
