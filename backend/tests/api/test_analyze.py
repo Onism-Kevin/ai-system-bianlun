@@ -170,6 +170,8 @@ def test_analyze_200_invalid_message_seq_filtered(session, client, user_and_head
     resp = client.post(f"/api/sessions/{sess.id}/analyze", cookies=cookies)
     assert resp.status_code == 200, resp.text
     body = resp.json()
+    # 节点还在，没被删（source_ref 过滤是"置 None"不是"删节点"）
+    assert len(body["nodes"]) == 1
     # seq 99999 不在 valid set → 过滤为 None
     assert body["nodes"][0]["source_ref"] is None
 

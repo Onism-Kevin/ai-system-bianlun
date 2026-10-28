@@ -60,7 +60,7 @@ def analyze_session(
     3. 读 role='user' AND status != 'streaming' 的消息（按 seq 升序）
     4. 零行 → 422 "会话无消息可分析，请先完成至少一轮对话"
     5. structured.generate_structured(messages, ArgumentMap, generate)
-    6. 后置过滤 source_ref：message_seq 不在 valid_seq_set → 置 None
+    6. 后置过滤 source_ref：message_seq 不在 user_seq_set → 置 None
     7. StructuredValidationError → 422（E-22）
     """
     session = db.get(TrainingSession, session_id)
@@ -97,7 +97,7 @@ def analyze_session(
         }
         for row in rows
     ]
-    valid_seq_set = {row.seq for row in rows}
+    user_seq_set = {row.seq for row in rows}
 
     provider = build_provider()
 
@@ -116,15 +116,15 @@ def analyze_session(
             detail=str(exc),
         ) from exc
 
-    # 后置过滤 source_ref：message_seq 不在 valid_seq_set → 置 None
+    # 后置过滤 source_ref：message_seq 不在 user_seq_set → 置 None
     # source_ref=None 有两种来源：
     # 1. 模型判断该节点无直接来源（综合结论/模型推断）
-    # 2. 模型输出了 message_seq 但不在 valid_seq_set 里（幻觉 seq 被过滤）
+    # 2. 模型输出了 message_seq 但不在 user_seq_set 里（幻觉 seq 被过滤）
     # MVP 不区分，S5+ 可加 filtered_refs 字段记录被过滤的原始 seq。
     for node in result.nodes:
         if (
             node.source_ref is not None
-            and node.source_ref.message_seq not in valid_seq_set
+            and node.source_ref.message_seq not in user_seq_set
         ):
             node.source_ref = None
 
