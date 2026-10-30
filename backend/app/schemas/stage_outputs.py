@@ -118,16 +118,24 @@ class CoachTurn(BaseModel):
 class ReportSection(BaseModel):
     heading: str
     body: str
+    dimension_id: str = Field(description="维度英文 id（argument_structure 等）")
 
 
 class ReviewReport(BaseModel):
-    """复盘报告：分节结构化，便于前端渲染与教师批阅。"""
+    """复盘报告（E-24 修订）：四维度分数 + 分节正文。
+
+    S0-5 旧 schema 只有 score: int（单分）；S2-10 扩展为 scores: dict[str, int]
+    （四维度）+ summary + strengths + weaknesses + sections。
+    旧 score 字段保留为"加权总分"（由端点计算，不从模型输出）。
+    S0-7 spike 历史数据（model_bench_outputs.jsonl）不重跑，旧 schema 归档。
+    """
 
     summary: str = Field(description="总体评价")
     strengths: list[str] = Field(default_factory=list)
     weaknesses: list[str] = Field(default_factory=list)
     sections: list[ReportSection] = Field(default_factory=list)
-    score: int = Field(ge=0, le=100, description="综合分 0-100")
+    scores: dict[str, int] = Field(description="四维度分数 {英文id: 0-100}")
+    score: int = Field(default=0, description="加权总分（端点计算，非模型输出，E-24）")
 
 
 # ---------- stage -> schema 映射 ----------

@@ -256,3 +256,29 @@
   坏 JSON → 重试 → StructuredValidationError → 同步端点映射 422。
   统一加一条 errata 比每个端点单独注释好。
 - **日期/拍板人**：用户，2026-10-27（S2-7 审阅追问 2 裁定）。
+
+## E-23 stage API 的 StructuredValidationError 映射分端点（422 vs 502）
+
+- **原文问题**：api.md §3:94 统一写"StructuredValidationError → 502"，
+  但 explore/analyze/coach_turn 端点行（api.md:43-45）错误码列只列
+  401/404/422，不含 502/504。S2-7/8/9 实现按端点行映射 422，与 §3:94
+  字面不一致。
+- **澄清为**：StructuredValidationError 的映射分端点：
+  - explore/analyze/coach_turn（短同步调用）→ 422（端点行字面，
+    "格式不对可重试"语义）；
+  - reports（长耗时生成）→ 502（api.md:47 字面，"服务故障"语义）。
+- **依据**：api.md 端点行错误码列是特例覆盖 §3 全局规则。短调用的
+  坏 JSON 是模型输出格式问题（可重试），长调用的坏 JSON 是生成过程
+  的服务故障（需排查）。
+- **日期/拍板人**：用户，2026-10-30（S2-10 设计纲要审阅，缺口 2 裁定）。
+
+## E-24 ReviewReport schema 修订（S0-5 → S2-10）
+
+- **原文**：S0-5 ReviewReport 只有 score: int（单分），产出 summary/
+  strengths/weaknesses/sections/score。
+- **修订为**：S2-10 扩展为 scores: dict[str, int]（四维度分数）+
+  summary + strengths + weaknesses + sections。旧 score 字段保留为
+  "加权总分"（由端点计算，不从模型输出）。
+- **适用范围**：仅 Pydantic schema 与 API 出参；S0-7 spike 的历史数据
+  （model_bench_outputs.jsonl）不重跑，旧 schema 归档。
+- **日期/拍板人**：用户，2026-10-30（S2-10 设计纲要审阅，缺口 3 裁定）。
