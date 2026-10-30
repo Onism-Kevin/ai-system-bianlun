@@ -201,6 +201,39 @@ def test_coach_turn_200_quote_refs_filtered(session, client, user_and_headers, m
     assert body["quote_refs"][0]["seq"] == msg.seq
 
 
+def test_coach_turn_200_quote_refs_all_filtered(session, client, user_and_headers, monkeypatch):
+    """quote_refs 全部无效 seq → 过滤后空列表（200，不是 422）。
+
+    选项 B：全部 quote_refs 的 seq 都不在 valid set → 全部移除，返回空列表。
+    CoachTurn 允许空 quote_refs（default_factory=list），不报错。
+    """
+    from app.core.model_provider import FakeProvider
+
+    import app.api.coach_turn as coach_module
+
+    user, cookies = user_and_headers
+    sess = _make_session(session, user.id)
+    _add_user_message(session, sess.id, "学生的核心主张")
+
+    # quote_refs 全部无效（99999 不在 valid set）
+    valid_json = _coach_turn_json(
+        quote_refs=[{"seq": 99999, "quote": "幻觉引用"}]
+    )
+    monkeypatch.setattr(
+        coach_module, "build_provider", lambda: FakeProvider(chunks=[valid_json])
+    )
+
+    resp = client.post(
+        f"/api/sessions/{sess.id}/coach_turn",
+        json={"mode": "coach"},
+        cookies=cookies,
+    )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    # 全部无效 → 空列表（不是 422）
+    assert body["quote_refs"] == []
+
+
 # ---- 422：坏 JSON（StructuredValidationError → 422，E-22） ----
 
 
