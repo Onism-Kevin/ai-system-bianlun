@@ -141,6 +141,10 @@ def _build_summary_text(report: ReviewReport, rubric: dict) -> str:
     sections_by_dim = {s.dimension_id: s for s in report.sections}
     ordered_sections = [
         sections_by_dim[d] for d in rubric_order if d in sections_by_dim
+        # 缺失维度的 section 静默跳过（不占位）。
+        # 模型可能未生成某个维度的分节（尤其 D4 在无反思时）。
+        # MVP 接受 summary_text 缺节；S2-F7 前端按存在的 ## 标题渲染。
+        # S5 若需要"维度完整性校验"，在此处加占位或 502。
     ]
 
     parts: list[str] = []
