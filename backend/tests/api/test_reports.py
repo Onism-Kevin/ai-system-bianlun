@@ -279,3 +279,121 @@ def test_reports_404_no_report(session, client, user_and_headers):
 
     resp = client.get(f"/api/sessions/{sess.id}/reports", cookies=cookies)
     assert resp.status_code == 404
+
+
+# ---- 201：无 revisions（回退 messages） ----
+
+
+def test_reports_201_no_revision_at_all(session, client, user_and_headers, monkeypatch):
+    """revisions 表为空 → 回退到 messages 拼接，报告正常生成。"""
+    from app.core.model_provider import FakeProvider
+
+    import app.api.reports as reports_module
+
+    monkeypatch.setattr(
+        reports_module, "build_provider", lambda: FakeProvider(chunks=[_valid_report_json()])
+    )
+
+    user, cookies = user_and_headers
+    sess = _make_session(session, user.id)
+    _add_user_message(session, sess.id, "我认为AI应该限制使用")
+    _add_user_message(session, sess.id, "因为隐私风险很大")
+    # 不创建任何 Revision 行
+
+    resp = client.post(f"/api/sessions/{sess.id}/reports", cookies=cookies)
+    assert resp.status_code == 201, resp.text
+    body = resp.json()
+    assert "summary" in body
+
+
+# ---- 403：教师对 student task 会话调 POST ----
+
+
+def test_reports_403_non_owner_task_session(session, client, user_and_headers):
+    """教师对学生 task 会话调 POST reports → 403（api.md:47 字面）。"""
+    from app.core.security import create_access_token
+    from app.models.course import Course
+    from app.models.session import TrainingSession
+    from app.models.task import Task
+    from app.models.user import User, UserRole
+
+    owner, _ = user_and_headers
+    teacher = User(username="tea1", password_hash="x", display_name="教师")
+    session.add(teacher)
+    session.flush()
+    session.add(UserRole(user_id=teacher.id, role="teacher"))
+    course = Course(teacher_id=teacher.id, name="逻辑学", invite_code="LOG101", term="2026秋")
+    session.add(course)
+    session.flush()
+    task = Task(course_id=course.id, title="AI 议题辩论")
+    session.add(task)
+    session.commit()
+    sess = TrainingSession(
+        owner_id=owner.id, topic="AI 限制", visibility="task", task_id=task.id, status="waiting"
+    )
+    session.add(sess)
+    session.commit()
+    session.refresh(sess)
+    _add_user_message(session, sess.id, "学生的核心主张")
+
+    resp = client.post(
+        f"/api/sessions/{sess.id}/reports",
+        cookies={"access_token": create_access_token(teacher.id)},
+    )
+    assert resp.status_code == 403
+    assert resp.json()["detail"] == "仅会话所有者可生成报告"
+
+
+# ---- GET /api/reports/{id} 200 ----
+
+
+def test_get_report_by_id_200(session, client, user_and_headers, monkeypatch):
+    """GET /api/reports/{id} → 200，返回完整报告（api.md:49）。"""
+    from app.core.model_provider import FakeProvider
+
+    import app.api.reports as reports_module
+    from sqlalchemy import select
+    from app.models.report import Report
+
+    monkeypatch.setattr(
+        reports_module, "build_provider", lambda: FakeProvider(chunks=[_valid_report_json()])
+    )
+
+    user, cookies = user_and_headers
+    sess = _make_session(session, user.id)
+    _add_user_message(session, sess.id, "我认为AI应该限制使用")
+
+    # POST 生成报告
+    resp = client.post(f"/api/sessions/{sess.id}/reports", cookies=cookies)
+    assert resp.status_code == 201, resp.text
+
+    # 查 DB 获取 report id
+    session.expire_all()
+    row = session.scalars(
+        select(Report).where(Report.session_id == sess.id).order_by(Report.id.desc()).limit(1)
+    ).first()
+    assert row is not None
+    report_id = row.id
+
+    # GET /api/reports/{id}
+    resp = client.get(f"/api/reports/{report_id}", cookies=cookies)
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["id"] == report_id
+    assert body["session_id"] == sess.id
+    assert body["rubric_version"] == "v1.0"
+    assert "scores" in body
+    assert "overall_score" in body
+    assert "summary_text" in body
+    assert body["overall_score"] == 68.75
+
+
+# ---- GET /api/reports/{id} 404 ----
+
+
+def test_get_report_by_id_404(session, client, user_and_headers):
+    """GET /api/reports/{nonexistent_id} → 404。"""
+    user, cookies = user_and_headers
+
+    resp = client.get("/api/reports/999999", cookies=cookies)
+    assert resp.status_code == 404
