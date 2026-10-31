@@ -10,7 +10,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import analyze, auth, coach_turn, events, explore, reports, sessions
+from app.api import analyze, auth, coach_turn, events, explore, reports, revisions, sessions
 
 app = FastAPI(title="思辨工坊", version="0.0.1")
 
@@ -29,6 +29,7 @@ app.include_router(explore.router)
 app.include_router(analyze.router)
 app.include_router(coach_turn.router)
 app.include_router(reports.router)
+app.include_router(revisions.router)
 
 
 @app.get("/api/health")
