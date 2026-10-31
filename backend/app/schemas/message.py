@@ -41,7 +41,9 @@ class MessageOut(BaseModel):
     role: MessageRole
     agent_role: AgentRole | None
     content: str
-    status: MessageStatus
+    status: MessageStatus = Field(
+        description="消息状态（messages.status 三态：streaming/complete/paused_truncated）"
+    )
     created_at: datetime
 
 

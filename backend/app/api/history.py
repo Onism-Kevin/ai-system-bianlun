@@ -23,12 +23,12 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import can_read_session, get_current_user
 from app.core.database import get_db
-from app.models.message import Message
 from app.models.session import TrainingSession
 from app.models.user import User
 from app.schemas.history import HistoryDetailOut, HistoryItem
 from app.schemas.message import MessageOut
 from app.schemas.session import SessionOut
+from app.services.message_query import query_messages
 
 router = APIRouter(prefix="/api", tags=["history"])
 
@@ -81,12 +81,8 @@ def get_history_detail(
     if session is None or not can_read_session(db, user, session):
         raise _NOT_FOUND
 
-    # 完整重建消息流：全部消息按 seq 升序
-    messages = db.scalars(
-        select(Message)
-        .where(Message.session_id == session_id)
-        .order_by(Message.seq.asc())
-    ).all()
+    # 完整重建消息流：全部消息按 seq 升序（共享查询逻辑）
+    messages = query_messages(db, session_id)
 
     return HistoryDetailOut(
         session=SessionOut.model_validate(session).model_dump(),

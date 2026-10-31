@@ -84,6 +84,7 @@ from app.schemas.session import (
 )
 from app.services.debate_runner import build_provider, plan_finalize_target, run_generation
 from app.services.event_bus import event_bus as _event_bus
+from app.services.message_query import query_messages
 from app.services.session_registry import SessionParams, session_registry
 
 router = APIRouter(prefix="/api/sessions", tags=["sessions"])
@@ -566,12 +567,7 @@ def list_messages(
     session = db.get(TrainingSession, session_id)
     if session is None or not can_read_session(db, user, session):
         raise _NOT_FOUND
-    rows = db.scalars(
-        select(Message)
-        .where(Message.session_id == session_id, Message.seq > after_seq)
-        .order_by(Message.seq.asc())
-        .limit(limit)
-    ).all()
+    rows = query_messages(db, session_id, after_seq=after_seq, limit=limit)
     messages = [MessageOut.model_validate(row) for row in rows]
     next_seq = rows[-1].seq if rows else after_seq
     return MessageListOut(messages=messages, next_seq=next_seq)
