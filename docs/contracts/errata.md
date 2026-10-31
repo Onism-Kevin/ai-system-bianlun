@@ -282,3 +282,17 @@
 - **适用范围**：仅 Pydantic schema 与 API 出参；S0-7 spike 的历史数据
   （model_bench_outputs.jsonl）不重跑，旧 schema 归档。
 - **日期/拍板人**：用户，2026-10-30（S2-10 设计纲要审阅，缺口 3 裁定）。
+
+## E-25 revisions 的 diff_vs_prev 语义分 PATCH/GET
+
+- **原文问题**：api.md:52 写"diff=相对上一版 unified diff"——"上一版"
+  在 PATCH 场景下有歧义：PATCH 不创建新 version，只修改当前 version
+  的 content，所以"上一版"不适用。
+- **澄清为**：PATCH 的 diff_vs_prev 是"同 revision 修改前 vs 修改后"
+  （PATCH 不创建新 version，只修改当前 version 的内容），与 GET 的
+  "上一版 version vs 当前版"语义不同。GET 的"上一版"是 version 编号
+  比当前小的最大 version。
+- **依据**：PATCH 是草稿自动保存入口（api.md:51），修改的是同一条
+  revision 记录的 content，不产生新 version。GET 是版本对比，对比的是
+  不同 version 的 content。
+- **日期/拍板人**：用户，2026-10-31（S2-11 审阅追问，契约语义问题裁定）。

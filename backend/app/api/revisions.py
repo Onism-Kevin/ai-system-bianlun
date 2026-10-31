@@ -64,26 +64,44 @@ def _to_out(rev: Revision) -> RevisionOut:
     )
 
 
-def _get_prev_content(db: Session, session_id: int, curr_version: int) -> str | None:
-    """取上一版 content（version < curr_version，不假设连续）。"""
-    return db.scalar(
-        select(Revision.content)
+def _get_prev_content(
+    db: Session, session_id: int, curr_version: int
+) -> tuple[str | None, int | None]:
+    """取上一版 content + version（version < curr_version，不假设连续）。
+
+    返回 (content, version)；无上一版时返回 (None, None)。
+    """
+    result = db.execute(
+        select(Revision.content, Revision.version)
         .where(
             Revision.session_id == session_id,
             Revision.version < curr_version,
         )
         .order_by(Revision.version.desc())
         .limit(1)
-    )
+    ).first()
+    if result is None:
+        return None, None
+    return result[0], result[1]
 
 
-def _compute_diff(prev_content: str | None, curr_content: str) -> str | None:
-    """unified diff（首版返回 None）。"""
+def _compute_diff(
+    prev_content: str | None,
+    curr_content: str,
+    fromfile: str = "",
+    tofile: str = "",
+) -> str | None:
+    """unified diff（首版返回 None）。
+
+    fromfile/tofile 用于 diff 输出的 --- / +++ 标签（版本号）。
+    """
     if prev_content is None:
         return None
     prev_lines = prev_content.splitlines(keepends=True)
     curr_lines = curr_content.splitlines(keepends=True)
-    return "".join(difflib.unified_diff(prev_lines, curr_lines))
+    return "".join(
+        difflib.unified_diff(prev_lines, curr_lines, fromfile=fromfile, tofile=tofile)
+    )
 
 
 def _demote_other_finals(db: Session, session_id: int, keep_id: int) -> None:
@@ -200,7 +218,13 @@ def update_revision(
     # （prev_content）与"更新后的 content"——显示本次 PATCH 改了什么。
     # 与 GET 不同：GET 对比"上一版 version 的 content"与"当前 version 的
     # content"（跨版本 diff）；PATCH 对比"同 revision 旧内容"与"新内容"。
-    diff = _compute_diff(prev_content, revision.content)
+    # E-25：PATCH 的 diff_vs_prev 语义是"同 revision 修改前 vs 修改后"。
+    diff = _compute_diff(
+        prev_content,
+        revision.content,
+        fromfile=f"v{revision.version}(修改前)",
+        tofile=f"v{revision.version}(修改后)",
+    )
 
     return RevisionDetailOut(
         revision=_to_out(revision),
@@ -230,8 +254,13 @@ def list_revisions(
 
     items: list[RevisionListItem] = []
     for rev in rows:
-        prev = _get_prev_content(db, session_id, rev.version)
-        diff = _compute_diff(prev, rev.content)
+        prev_content, prev_version = _get_prev_content(db, session_id, rev.version)
+        diff = _compute_diff(
+            prev_content,
+            rev.content,
+            fromfile=f"v{prev_version}" if prev_version else "",
+            tofile=f"v{rev.version}",
+        )
         out = _to_out(rev)
         items.append(RevisionListItem(
             id=out.id, version=out.version, status=out.status,
@@ -259,8 +288,13 @@ def get_revision(
     if session is None or not can_read_session(db, user, session):
         raise _NOT_FOUND
 
-    prev = _get_prev_content(db, revision.session_id, revision.version)
-    diff = _compute_diff(prev, revision.content)
+    prev_content, prev_version = _get_prev_content(db, revision.session_id, revision.version)
+    diff = _compute_diff(
+        prev_content,
+        revision.content,
+        fromfile=f"v{prev_version}" if prev_version else "",
+        tofile=f"v{revision.version}",
+    )
 
     return RevisionDetailOut(
         revision=_to_out(revision),

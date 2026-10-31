@@ -314,3 +314,43 @@ def test_get_revisions_401_no_auth(session, client, user_and_headers):
 
     resp = client.get(f"/api/revisions?session_id={sess.id}")
     assert resp.status_code == 401
+
+
+# ---- PATCH 404：他人 private 会话 ----
+
+
+def test_patch_revision_404_private_session(session, client, user_and_headers):
+    """学生 PATCH 他人 private 会话的 revision → 404（can_read_session 不过）。"""
+    from app.core.security import create_access_token
+    from app.models.user import User
+
+    owner, cookies = user_and_headers
+    other = User(username="stu2", password_hash="x", display_name="同学2")
+    session.add(other)
+    session.commit()
+    session.refresh(other)
+    sess = _make_session(session, other.id)  # session 属于 other（private）
+
+    # other 创建 revision（用 other 的 token）
+    other_cookies = {"access_token": create_access_token(other.id)}
+    client.post("/api/revisions", json={"session_id": sess.id, "content": "他人观点"},
+                cookies=other_cookies)
+
+    # owner（stu1）尝试 PATCH → 404（不可读他人 private 会话）
+    from sqlalchemy import select
+    from app.models.revision import Revision
+    rev = session.scalars(select(Revision).where(Revision.session_id == sess.id)).first()
+    resp = client.patch(f"/api/revisions/{rev.id}", json={"content": "改"}, cookies=cookies)
+    assert resp.status_code == 404
+
+
+# ---- POST 401：未登录 ----
+
+
+def test_create_revision_401_no_auth(session, client, user_and_headers):
+    """未登录 POST → 401。"""
+    user, _ = user_and_headers
+    sess = _make_session(session, user.id)
+
+    resp = client.post("/api/revisions", json={"session_id": sess.id, "content": "观点"})
+    assert resp.status_code == 401
