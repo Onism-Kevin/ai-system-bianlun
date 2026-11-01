@@ -41,8 +41,14 @@ export const healthBadge = computed(() => {
 })
 
 let pollTimer: ReturnType<typeof setInterval> | null = null
-let started = false
+/** 引用计数：多个 <ModelGatewayBanner/> 挂载时共享同一条轮询，全部卸载才停。 */
+let refCount = 0
 
+/**
+ * 浏览器恢复网络时触发——**只保证"浏览器有网"，不保证"后端可用"**。
+ * 后端可能仍挂（连接被拒/超时），此时 reload 仍失败、unreachable 保持 true。
+ * 因此 online 事件是"尽快重试"的优化，不是"健康状态已恢复"的保证。
+ */
 function onOnline() {
   void reload()
 }
@@ -62,26 +68,32 @@ async function reload() {
 }
 
 function start() {
-  if (started) return
-  started = true
-  void reload()
-  pollTimer = setInterval(() => {
+  refCount += 1
+  // 仅首个挂载启动轮询；后续挂载只加引用，避免重复定时器
+  if (refCount === 1) {
     void reload()
-  }, HEALTH_POLL_MS)
-  window.addEventListener('online', onOnline)
+    pollTimer = setInterval(() => {
+      void reload()
+    }, HEALTH_POLL_MS)
+    window.addEventListener('online', onOnline)
+  }
 }
 
 function stop() {
-  if (pollTimer !== null) {
-    clearInterval(pollTimer)
-    pollTimer = null
+  refCount = Math.max(0, refCount - 1)
+  // 引用计数归零才真正停——任一组件卸载不会误停其他仍在挂载的组件的轮询
+  if (refCount === 0) {
+    if (pollTimer !== null) {
+      clearInterval(pollTimer)
+      pollTimer = null
+    }
+    window.removeEventListener('online', onOnline)
   }
-  window.removeEventListener('online', onOnline)
-  started = false
 }
 
 export function useHealth() {
-  // 组件作用域卸载时停掉轮询；单例状态保留（下次挂载继续用）。
+  // 引用计数卸载：组件作用域卸载时减引用；仅当所有挂载点都卸载才停轮询。
+  // 单例状态保留（下次挂载继续用）。
   onScopeDispose(stop)
   return { status, loading, unreachable, gatewayState, gatewayAlert, healthBadge, reload, start }
 }
