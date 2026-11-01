@@ -213,12 +213,6 @@ function connectSse(id: number) {
   }, { afterSeq: maxSeq() })
 }
 
-function scrollToMessage(seq: number) {
-  // 锚点跳转基础版（计划书:307 验收「点击引用→滚动至对应消息」）：
-  // scroll-margin-top 补偿 sticky 头（见 <style>）。
-  document.getElementById(`msg-${seq}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-}
-
 async function onSend() {
   const content = inputText.value.trim()
   if (!content) {
