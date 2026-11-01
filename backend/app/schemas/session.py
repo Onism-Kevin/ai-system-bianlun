@@ -26,6 +26,10 @@ Visibility = Literal["private", "task"]
 # topic 上限与 models/session.py TrainingSession.topic String(200) 一致
 TOPIC_MAX = 200
 
+# 反思文本上限（api.md:36「422 空/超长」；契约未给具体数值，取与 explore
+# 一致的 5000 字，与报告 prompt 输入规模匹配）。
+REFLECTION_MAX = 5000
+
 
 class SessionCreate(BaseModel):
     """POST /api/sessions 入参（api.md:28）。"""
@@ -96,4 +100,30 @@ class SessionOut(BaseModel):
     task_id: int | None
     status: str
     created_at: datetime
+    updated_at: datetime
+
+
+class ReflectionUpdate(BaseModel):
+    """POST /api/sessions/{id}/reflection 入参（api.md:36）：{content}。
+
+    非空（min_length=1）+ 超长（max_length=REFLECTION_MAX）→ 422。
+    """
+
+    content: str = Field(min_length=1, max_length=REFLECTION_MAX)
+
+
+class ReflectionSavedOut(BaseModel):
+    """POST 出参（api.md:36）：200 {updated_at}（单会话单文本，UPDATE 同一列）。"""
+
+    updated_at: datetime
+
+
+class ReflectionOut(BaseModel):
+    """GET 出参（api.md:37）：200 {content, updated_at}。
+
+    未填写时 content=null（**不 404**——404 在本契约=越权存在性隐藏，
+    空反思非越权；报告 prompt 按无反思分支处理，同 notes §6 第 6 条模式）。
+    """
+
+    content: str | None = None
     updated_at: datetime

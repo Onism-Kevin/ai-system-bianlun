@@ -122,11 +122,21 @@ class TestCoachTurn:
 
 class TestReviewReport:
     def test_valid(self):
+        """E-24 修订后合法样例：scores（四维度英文 id）+ sections[].dimension_id。
+
+        旧样例（无 scores / section 无 dimension_id）在 E-24 定稿后必失败，
+        此处按新 schema 维护（E-24：scores 必填，sections 带维度 id）。
+        """
         obj = ReviewReport.model_validate_json(
             '{"summary":"整体良好","strengths":["论点清晰"],"weaknesses":["证据不足"],'
-            '"sections":[{"heading":"论点构建","body":"..."}],"score":82}'
+            '"sections":[{"heading":"论点构建","body":"...","dimension_id":"argument_structure"}],'
+            '"scores":{"argument_structure":80,"evidence_quality":70,'
+            '"rebuttal_response":75,"revision_reflection":78},'
+            '"score":82}'
         )
         assert obj.score == 82
+        assert obj.scores["argument_structure"] == 80
+        assert obj.sections[0].dimension_id == "argument_structure"
 
     def test_invalid_score_out_of_range(self):
         with pytest.raises(ValidationError):

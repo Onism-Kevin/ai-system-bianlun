@@ -76,6 +76,9 @@ from app.schemas.message import (
     MessageOut,
 )
 from app.schemas.session import (
+    ReflectionOut,
+    ReflectionSavedOut,
+    ReflectionUpdate,
     SessionCreate,
     SessionCreated,
     SessionOut,
@@ -111,6 +114,12 @@ _CONFLICT_NOT_WAITING = HTTPException(
 _FORBIDDEN_SUBMIT = HTTPException(
     status_code=status.HTTP_403_FORBIDDEN,
     detail="仅会话所有者可提交消息",
+)
+# reflection 403（api.md:36/37 错误列字面「403 非 owner」）：can_read_session
+# 通过（课程教师可读 task 会话）但非 owner → 403；不可见会话一律 404。
+_FORBIDDEN_REFLECTION = HTTPException(
+    status_code=status.HTTP_403_FORBIDDEN,
+    detail="仅会话所有者可填写/查看反思",
 )
 # task 跨用户引用（用户 2026-10-14 裁定）：task 存在未归档但不属于当前
 # 用户 → 404 存在性隐藏（permissions §3：不暴露"存在但不是你的"）
@@ -368,6 +377,60 @@ def submit_message(
 
     background_tasks.add_task(_run)
     return MessageCreated(seq=message.seq, created_at=message.created_at)
+
+
+# ---- S2-F7 前置：reflection 双端点（G2 裁定，api.md v1.2:36-37）----
+
+
+@router.post("/{session_id}/reflection")
+def save_reflection(
+    session_id: int,
+    body: ReflectionUpdate,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> ReflectionSavedOut:
+    """保存/更新学生反思（api.md:36）。
+
+    契约逐条：
+    - 200 {updated_at}：单会话单文本，UPDATE sessions.reflection 同一列（upsert
+      语义——同会话反复保存即覆盖，不新增行）；
+    - 422：空 content（min_length=1）或超 REFLECTION_MAX；
+    - 权限分层同 messages（api.md:36 错误列字面 401/403/404）：
+      can_read_session 不过 → 404（存在性隐藏，private 对教师也 404）；
+      可读但非 owner（课程教师读学生 task 会话）→ 403。
+    """
+    session = db.get(TrainingSession, session_id)
+    if session is None or not can_read_session(db, user, session):
+        raise _NOT_FOUND
+    if session.owner_id != user.id:
+        raise _FORBIDDEN_REFLECTION
+
+    session.reflection = body.content
+    db.commit()
+    db.refresh(session)
+    return ReflectionSavedOut(updated_at=session.updated_at)
+
+
+@router.get("/{session_id}/reflection")
+def get_reflection(
+    session_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> ReflectionOut:
+    """读取学生反思（api.md:37）。
+
+    契约逐条：
+    - 200 {content, updated_at}：未填写时 content=null（**不 404**——空反思
+      非越权，报告 prompt 按无反思分支处理）；
+    - 权限分层同 POST：can_read_session 不过 → 404；可读但非 owner → 403。
+    """
+    session = db.get(TrainingSession, session_id)
+    if session is None or not can_read_session(db, user, session):
+        raise _NOT_FOUND
+    if session.owner_id != user.id:
+        raise _FORBIDDEN_REFLECTION
+
+    return ReflectionOut(content=session.reflection, updated_at=session.updated_at)
 
 
 @router.post("/{session_id}/pause")
