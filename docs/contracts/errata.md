@@ -296,3 +296,32 @@
   revision 记录的 content，不产生新 version。GET 是版本对比，对比的是
   不同 version 的 content。
 - **日期/拍板人**：用户，2026-10-31（S2-11 审阅追问，契约语义问题裁定）。
+
+## E-27 api.md:49 GET /api/reports/{id} 的 sections[] 未实现（澄清，不改既有语义）
+
+- **原文问题**：api.md:49 写 `GET /api/reports/{id}` →
+  `{…, sections[], …}`；但 `backend/app/api/reports.py` 的
+  `get_report_by_id` / `get_latest_report` 实际只返回
+  `{id, session_id, rubric_version, scores, overall_score, summary_text,
+  created_at}`——**不返回 sections[]**。
+- **澄清为**：`sections[]` 是 **POST /api/sessions/{id}/reports 的专属字段**
+  （模型输出结构化分节，`ReviewReport.sections`）。服务端生成报告时把这些
+  sections 拼进 `summary_text` 落库（`reports.py:_build_summary_text`），
+  因此 GET 只有拼接后的 `summary_text`（markdown），没有结构化 sections。
+- **前端影响（S2-F7）**：刷新/已有报告走 `summary_text` 的 markdown 渲染；
+  仅 POST 刚返回时用 `sections[]` 结构化渲染。前端不依赖 GET 的 sections。
+- **日期/拍板人**：用户，2026-11-01（S2-F7 设计纲要审阅，裁定 D1）。
+
+## E-28 S2-10 reports 未实现 report_progress / report_ready SSE 事件（澄清）
+
+- **原文问题**：sse_events.md §5.8/§5.9 定义了 `report_progress` /
+  `report_ready` 两个事件（报告逐节生成反馈）；但
+  `backend/app/api/reports.py` 的 `POST /api/sessions/{id}/reports` 是
+  **同步阻塞**（中位 30.8s / 峰值 57.6s，S0-7 spike），未推送任何进度事件
+  ——S1-6 定义的事件"从未实现"。
+- **澄清为**：S2-10 的 reports 生成**不推送 SSE 进度**；前端 S2-F7 用骨架屏
+  +「报告生成中（约 30 秒）」提示替代。S5 若需要逐节进度条，需 S2-10 补
+  SSE 推送（`report_progress` 逐节 + `report_ready` 落库通知）。
+- **理由**：不写本勘误，S3/S4/S5 读 sse_events.md 会误以为进度推送已落地，
+  重复实现或误判。
+- **日期/拍板人**：用户，2026-11-01（S2-F7 设计纲要审阅，裁定 F5）。
