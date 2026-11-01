@@ -71,6 +71,24 @@ export interface MessageListOut {
   next_seq: number
 }
 
+// 与 backend/app/schemas/history.py HistoryItem 对应（S2-12，api.md:40）。
+// 列表是 owner 视角 5 字段（无 visibility/task_id）；后端按 updated_at DESC 排序。
+export interface HistoryItem {
+  id: number
+  topic: string
+  status: string
+  created_at: string
+  updated_at: string
+}
+
+// 与 backend/app/schemas/history.py HistoryDetailOut 对应（S2-12，api.md:41）。
+// session = SessionOut（平铺七字段）；messages = list[MessageOut]（按 seq 升序，
+// 含 streaming 在途消息——历史详情是完整重建，不过滤）。
+export interface HistoryDetailOut {
+  session: SessionOut
+  messages: MessageOut[]
+}
+
 // 与 docs/contracts/sse_events.md §4 事件总表逐字对应（S2-F5 useSSE 消费）。
 // 注意：只有 speech_* 帧服务端写 id: 行（=seq），EventSource 原生把 id 透传到
 // event.lastEventId；帧内 seq 字段冗余但前端按帧内 seq upsert（§7.4 幂等）。
