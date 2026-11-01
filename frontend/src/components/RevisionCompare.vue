@@ -112,9 +112,20 @@ const selectedDiff = computed(() => selected.value?.diff_vs_prev ?? null)
 const currentDiff = computed(() => patchDiff.value ?? selectedDiff.value)
 
 const diffLabel = computed(() => {
-  if (patchDiff.value !== null) return '本次修改：修改前 → 修改后（同 revision，E-25）'
-  if (selectedDiff.value !== null) return '版本间对比（GET diff_vs_prev，E-25）'
-  if (selected.value) return '首版（无上一版，diff 为 null）'
+  if (patchDiff.value !== null) {
+    return '本次修改：修改前 → 修改后（同 revision，E-25）'
+  }
+  if (selectedDiff.value !== null) {
+    // GET diff 头由后端 difflib 产出：`--- v{prev}` / `+++ v{curr}`（E-25）。
+    // 解析出版本号，标签显示 "v1 → v2"。
+    const lines = selectedDiff.value.split('\n')
+    const fromLine = lines.find((l) => l.startsWith('---')) ?? ''
+    const toLine = lines.find((l) => l.startsWith('+++')) ?? ''
+    const prev = fromLine.replace(/^---\s*/, '').trim()
+    const curr = toLine.replace(/^\+\+\+\s*/, '').trim()
+    return `版本间对比：${prev || '首版'} → ${curr}（GET diff_vs_prev，E-25）`
+  }
+  if (selected.value) return `首版 v${selected.value.version}（无上一版，diff 为 null）`
   return '尚未选择版本'
 })
 
