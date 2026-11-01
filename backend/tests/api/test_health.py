@@ -91,3 +91,41 @@ def test_health_no_auth(session, client):
     body = resp.json()
     assert "mysql" in body
     assert "model_gateway" in body
+
+
+# ---- error_map：数据库异常分类（errata E-6）----
+
+
+def test_error_map_data_error():
+    """DataError(1265) → 422（ENUM 值非法）。"""
+    from sqlalchemy.exc import DataError
+
+    from app.services.error_map import classify_db_error
+
+    exc = DataError("stmt", {}, "orig")
+    status_code, _ = classify_db_error(exc)
+    assert status_code == 422
+
+
+def test_error_map_integrity_1062():
+    """IntegrityError(1062) → 409（唯一键冲突）。"""
+    from sqlalchemy.exc import IntegrityError
+
+    from app.services.error_map import classify_db_error
+
+    orig = type("Orig", (), {"args": (1062, "Duplicate entry")})()
+    exc = IntegrityError("stmt", {}, orig)
+    status_code, _ = classify_db_error(exc)
+    assert status_code == 409
+
+
+def test_error_map_integrity_fk():
+    """IntegrityError(1451/1452) → 409（外键约束）。"""
+    from sqlalchemy.exc import IntegrityError
+
+    from app.services.error_map import classify_db_error
+
+    orig = type("Orig", (), {"args": (1451, "FK constraint")})()
+    exc = IntegrityError("stmt", {}, orig)
+    status_code, _ = classify_db_error(exc)
+    assert status_code == 409
