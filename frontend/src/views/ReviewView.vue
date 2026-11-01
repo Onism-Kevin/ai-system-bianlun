@@ -5,19 +5,19 @@ import { ElMessage } from 'element-plus'
 import ModelGatewayBanner from '../components/ModelGatewayBanner.vue'
 import RevisionCompare from '../components/RevisionCompare.vue'
 import ReflectionForm from '../components/ReflectionForm.vue'
+import ReportPanel from '../components/ReportPanel.vue'
 import { getSession } from '../api/sessions'
 import { describeApiError, isUnauthorized } from '../api/errors'
 import type { SessionOut } from '../api/types'
 
-// S2-F7 复盘页容器（第一步：RevisionCompare + ReflectionForm 已接线）。
+// S2-F7 复盘页容器（S2-F7 两步均已完成：RevisionCompare + ReflectionForm + ReportPanel）。
 // 布局顺序（设计 §1，输入→输出）：
-//   ① 观点版本对比 → ② 个人反思 → ③ 报告区（ReportPanel，第二步） → ④ 提交按钮
+//   ① 观点版本对比 → ② 个人反思 → ③ 报告区（ReportPanel） → ④ 提交按钮
 // 反思在报告生成按钮上方，满足 S1-9b「报告生成前填写反思」。
 const route = useRoute()
 const router = useRouter()
 
 const session = ref<SessionOut | null>(null)
-const sessionId = ref<number>(0)
 const loading = ref(false)
 
 onMounted(async () => {
@@ -28,7 +28,6 @@ onMounted(async () => {
     router.push('/dashboard')
     return
   }
-  sessionId.value = id
   loading.value = true
   try {
     session.value = await getSession(id)
@@ -62,9 +61,7 @@ const submitHint = () => {
     <div class="hdr">
       <div>
         <h1>复盘 · 观点修订与报告</h1>
-        <span class="sub">
-          S2-F7（第一步：版本对比 + 反思；报告区 ReportPanel 为第二步）
-        </span>
+        <span class="sub">S2-F7 复盘页（版本对比 / 反思 / 报告生成与渲染）</span>
       </div>
       <div class="hdr-actions">
         <el-button link type="primary" @click="router.push('/history')">← 历史</el-button>
@@ -93,15 +90,12 @@ const submitHint = () => {
         </div>
       </el-card>
 
-      <RevisionCompare :session-id="session.id" @unauthorized="onUnauthorized" />
+      <RevisionCompare class="block" :session-id="session.id" @unauthorized="onUnauthorized" />
 
-      <ReflectionForm :session-id="session.id" @unauthorized="onUnauthorized" />
+      <ReflectionForm class="block" :session-id="session.id" @unauthorized="onUnauthorized" />
 
-      <!-- 报告区：第二步 ReportPanel 接入（设计 §8） -->
-      <el-card class="placeholder">
-        <template #header>报告（生成 + 渲染，S2-F7 第二步）</template>
-        <el-empty description="报告区在 S2-F7 第二步接入（ReportPanel：双渲染 + 502 错误 + 生成按钮）" />
-      </el-card>
+      <!-- 报告区（ReportPanel：双渲染 + 502 错误 + 生成按钮） -->
+      <ReportPanel class="block" :session-id="session.id" @unauthorized="onUnauthorized" />
 
       <el-card>
         <template #header>提交给课程任务</template>
@@ -150,7 +144,7 @@ const submitHint = () => {
 .session-card {
   margin-bottom: 12px;
 }
-.placeholder {
+.block {
   margin: 12px 0;
 }
 .loading {
