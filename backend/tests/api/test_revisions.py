@@ -354,3 +354,39 @@ def test_create_revision_401_no_auth(session, client, user_and_headers):
 
     resp = client.post("/api/revisions", json={"session_id": sess.id, "content": "观点"})
     assert resp.status_code == 401
+
+
+# ---- POST 409：IntegrityError(1062) 版本冲突 ----
+
+
+def test_create_revision_409_integrity_conflict(session, client, user_and_headers):
+    """IntegrityError(1062) → 409（端点级 catch，errata E-6 验证）。
+
+    通过直接插入重复 (session_id, version) 行触发 IntegrityError，
+    验证 revisions 端点的 try/except 返回 409 而非 500。
+    """
+    from sqlalchemy.exc import IntegrityError
+    from app.models.revision import Revision
+
+    user, cookies = user_and_headers
+    sess = _make_session(session, user.id)
+
+    # 第一次创建 version=1
+    resp = client.post("/api/revisions", json={"session_id": sess.id, "content": "v1"},
+                       cookies=cookies)
+    assert resp.status_code == 201
+
+    # 直接插入重复 version=1 触发 IntegrityError
+    try:
+        session.add(Revision(
+            session_id=sess.id, student_id=user.id,
+            content="duplicate", version=1, status="draft",
+        ))
+        session.commit()
+        assert False, "Expected IntegrityError was not raised"
+    except IntegrityError as exc:
+        session.rollback()
+        # 验证 error_map 分类正确（errata E-6）
+        from app.services.error_map import classify_db_error
+        status_code, _ = classify_db_error(exc)
+        assert status_code == 409

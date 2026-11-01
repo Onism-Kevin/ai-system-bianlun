@@ -29,7 +29,15 @@ def _probe_mysql() -> str:
 
 
 def _probe_gateway() -> str:
-    """探测模型网关：GET {base}/models → ok/degraded/down。"""
+    """探测模型网关：GET {base}/models → ok/degraded/down。
+
+    状态判定：
+    - 200 → ok
+    - >3s 超时 → degraded
+    - 连接拒绝/非200 → down
+    - 401（key 无效）也归为 down——MVP 不区分"网关不可达"和
+      "key 配置错误"，S5 若需要可加"config_error"状态。
+    """
     try:
         from app.core.config import get_settings
 
