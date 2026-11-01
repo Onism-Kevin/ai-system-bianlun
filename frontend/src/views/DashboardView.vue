@@ -15,6 +15,7 @@ import {
 } from '../api/dashboard'
 import type { CourseItem, SessionHistoryItem } from '../api/dashboard'
 import { describeApiError, isUnauthorized } from '../api/errors'
+import ModelGatewayBanner from '../components/ModelGatewayBanner.vue'
 
 // S2-F3 dashboard：参考 S1-10 原型 docs/prototypes/dashboard.html。
 // - 双角色徽标 + 双角色视角切换（roles 来自 /auth/me，真实数据）
@@ -159,6 +160,9 @@ function roleTagType(role: string): 'primary' | 'warning' | 'info' {
         </el-radio-group>
       </div>
     </div>
+
+    <!-- S2-F9：全局健康横幅 + health 徽标 -->
+    <ModelGatewayBanner />
 
     <!-- 学生视角 -->
     <template v-if="activeView === 'student' && auth.roles.includes('student')">

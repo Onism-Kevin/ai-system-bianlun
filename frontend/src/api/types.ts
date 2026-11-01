@@ -124,3 +124,11 @@ export interface SseErrorFrame {
 export interface SseDoneFrame {
   reason: 'finished' | 'failed' | string
 }
+
+// 与 backend/app/api/health.py 对应（S2-13，api.md:74）。
+// 降级也 200（状态在 body），匿名可读；前端只读 body 字段，不按状态码猜语义。
+// S2-F9 徽标/横幅消费。
+export interface HealthStatus {
+  mysql: 'ok' | 'down'
+  model_gateway: 'ok' | 'degraded' | 'down'
+}

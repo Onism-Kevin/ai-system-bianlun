@@ -26,6 +26,8 @@ export function describeApiError(err: unknown): string {
   if (status === 404) return describe404(data)
   if (status === 409) return describe409(data)
   if (status === 422) return describeValidation(data)
+  if (status === 502) return '模型服务暂时不可用，请稍后重试'
+  if (status === 504) return '模型服务响应超时，请稍后重试'
   if (status !== undefined && status >= 500) return '服务器繁忙，请稍后再试'
   return '网络异常，请检查连接后重试'
 }

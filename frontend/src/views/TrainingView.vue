@@ -14,6 +14,7 @@ import {
 import { describeApiError, isUnauthorized } from '../api/errors'
 import { useSSE } from '../composables/useSSE'
 import type { UseSseResult } from '../composables/useSSE'
+import ModelGatewayBanner from '../components/ModelGatewayBanner.vue'
 import type { SessionOut } from '../api/types'
 
 // S2-F5 训练页 SSE 客户端（设计：docs/design/s2_f5_sse_client_design.md）：
@@ -368,6 +369,9 @@ const canRestart = computed(() => status.value !== 'generating')
       </div>
       <el-button link type="primary" @click="router.push('/dashboard')">← 工作台</el-button>
     </div>
+
+    <!-- S2-F9：全局健康横幅 + health 徽标（模型网关 down/degraded 警告条） -->
+    <ModelGatewayBanner />
 
     <!-- 错误横幅（S2-F5）：流内 error 帧（§5.7）+ REST 错误 -->
     <el-alert
