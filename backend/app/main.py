@@ -9,8 +9,22 @@
 """
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from sqlalchemy.exc import DataError, IntegrityError
 
-from app.api import analyze, auth, coach_turn, events, explore, history, reports, revisions, sessions
+from app.api import (
+    analyze,
+    auth,
+    coach_turn,
+    events,
+    explore,
+    health,
+    history,
+    reports,
+    revisions,
+    sessions,
+)
+from app.services.error_map import classify_db_error
 
 app = FastAPI(title="思辨工坊", version="0.0.1")
 
@@ -31,9 +45,20 @@ app.include_router(coach_turn.router)
 app.include_router(reports.router)
 app.include_router(revisions.router)
 app.include_router(history.router)
+app.include_router(health.router)
 
 
-@app.get("/api/health")
-def health() -> dict:
-    """存活探针。S2-13 会扩展为探测模型网关 + MySQL。"""
-    return {"status": "ok"}
+# ---- 数据库异常全局处理（errata E-6）----
+# DataError(1265) → 422；IntegrityError(1062) → 409；IntegrityError(1451/1452) → 409
+
+
+@app.exception_handler(DataError)
+async def data_error_handler(request, exc):
+    status_code, detail = classify_db_error(exc)
+    return JSONResponse(status_code=status_code, content={"detail": detail})
+
+
+@app.exception_handler(IntegrityError)
+async def integrity_error_handler(request, exc):
+    status_code, detail = classify_db_error(exc)
+    return JSONResponse(status_code=status_code, content={"detail": detail})
