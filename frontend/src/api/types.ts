@@ -132,3 +132,125 @@ export interface HealthStatus {
   mysql: 'ok' | 'down'
   model_gateway: 'ok' | 'degraded' | 'down'
 }
+
+// ---- S2-F7：revisions（S2-11，api.md:50-53）+ reflection（G2，api.md:36-37）+ reports（S2-10）----
+
+export type RevisionStatus = 'draft' | 'final'
+
+// 与 backend/app/schemas/revision.py RevisionOut 对应（api.md:50/53）。
+export interface RevisionOut {
+  id: number
+  version: number
+  status: RevisionStatus | string
+  content: string
+  created_at: string
+}
+
+// POST /api/revisions 出参（api.md:50）：{id, version, status, diff:null}。
+// diff 在新版本总是 null（无上一版可 diff）。
+export interface RevisionPostResponse {
+  id: number
+  version: number
+  status: RevisionStatus | string
+  diff: string | null
+}
+
+// GET /api/revisions 列表项（api.md:52）：含 diff_vs_prev（版本间 diff，首版 null）。
+export interface RevisionListItem extends RevisionOut {
+  diff_vs_prev: string | null
+}
+
+// PATCH /api/revisions/{id} 与 GET /api/revisions/{id} 出参（api.md:51/53）。
+// E-25：PATCH 的 diff_vs_prev 是"同 revision 修改前 vs 修改后"；
+// GET 的 diff_vs_prev 是"上一版 version vs 当前版"。
+export interface RevisionDetailOut {
+  revision: RevisionOut
+  diff_vs_prev: string | null
+}
+
+export interface RevisionCreateBody {
+  session_id: number
+  content: string
+  status?: RevisionStatus
+}
+
+export interface RevisionUpdateBody {
+  content?: string
+  status?: RevisionStatus
+}
+
+// 与 backend/app/schemas/session.py ReflectionOut/ReflectionSavedOut 对应
+// （G2 裁定，api.md:36-37）。
+export interface ReflectionOut {
+  content: string | null
+  updated_at: string
+}
+
+export interface ReflectionSavedOut {
+  updated_at: string
+}
+
+// ---- reports（S2-10，api.md:47-49 + errata E-24/E-27）----
+
+// 与 backend/app/schemas/stage_outputs.py ReportSection 对应（POST 专属，E-27）。
+export interface ReportSection {
+  heading: string
+  body: string
+  dimension_id: string
+}
+
+// 与 ReviewReport 对应（POST /api/sessions/{id}/reports 返回，api.md:47）。
+// E-24：scores 是英文 id 键的四维度分数；score 是端点计算的加权总分。
+export interface ReviewReport {
+  summary: string
+  strengths: string[]
+  weaknesses: string[]
+  sections: ReportSection[]
+  scores: Record<string, number>
+  score: number
+}
+
+// 与 reports 表出参对应（GET /api/sessions/{id}/reports 与 GET /api/reports/{id}，
+// api.md:48/49 + errata E-27：**不返回 sections[]**，只有拼接后的 summary_text）。
+export interface StoredReport {
+  id: number
+  session_id: number
+  rubric_version: string
+  scores: Record<string, number>
+  overall_score: number
+  summary_text: string
+  created_at: string
+}
+
+/**
+ * 归一化报告对象（S2-F7 双渲染路径的统一入口）。
+ *
+ * ⚠️ summary 与 summary_text **不是同一个东西**，勿混用：
+ * - summary：POST /api/sessions/{id}/reports 返回（api.md:47）——模型生成的
+ *   总结，一两句话（ReviewReport.summary）。
+ * - summary_text：GET /api/sessions/{id}/reports / GET /api/reports/{id} 返回
+ *   （api.md:48/49 + errata E-27）——sections + strengths + weaknesses 的拼接
+ *   全文（markdown）。
+ * 渲染时：有 sections 走结构化渲染；只有 summary_text 走 markdown 渲染。
+ */
+export interface NormalizedReport {
+  rubric_version: string
+  scores: Record<string, number>
+  overall_score: number
+  /** POST 返回：模型生成的总结（一两句话） */
+  summary?: string
+  /** GET 返回：sections + strengths + weaknesses 的拼接全文（markdown） */
+  summary_text?: string
+  sections?: ReportSection[]
+  strengths?: string[]
+  weaknesses?: string[]
+  created_at: string
+}
+
+// 与 backend/app/schemas/task.py 提交出参对应（api.md:65，S3-4 未实现）。
+export interface SubmissionResponse {
+  id: number
+  session_id: number
+  submitted_at: string
+  replaced: boolean
+}
