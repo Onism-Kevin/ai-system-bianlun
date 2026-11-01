@@ -30,7 +30,10 @@ export const gatewayAlert = computed(
 
 /** 页脚徽标文案（MySQL + 网关）。 */
 export const healthBadge = computed(() => {
-  if (unreachable.value && !status.value) {
+  // T-7：unreachable 时统一覆盖为「不可达」——unreachable 的语义是"我们不知道
+  // 状态"，显示陈旧的 ok 会误导用户（S2-F7 报告生成长耗时，502/504 是大概率
+  // 事件，用户会先看到陈旧 ok 再点生成失败）。「不可达」是诚实的。
+  if (unreachable.value) {
     return { mysql: '不可达', gateway: '不可达', gatewayState: 'unknown' as GatewayState }
   }
   return {

@@ -7,7 +7,7 @@ import { useHealth, type GatewayState } from '../composables/useHealth'
 // - 页脚 health 徽标：model_gateway + mysql 实时状态（匿名可读，降级也 200）。
 // 集成到 TrainingView / DashboardView / ReviewView；单例 useHealth 保证三页共享
 // 同一份状态与同一条轮询（不重复拉 /api/health）。
-const { status, loading, unreachable, gatewayState, gatewayAlert, healthBadge, reload, start } =
+const { loading, unreachable, gatewayState, gatewayAlert, healthBadge, reload, start } =
   useHealth()
 
 start()
@@ -60,7 +60,7 @@ function mysqlTagType(m: string): 'success' | 'danger' | 'info' {
     <el-tag size="small" :type="mysqlTagType(healthBadge.mysql)" effect="plain">
       MySQL {{ healthBadge.mysql }}
     </el-tag>
-    <span v-if="unreachable && !status" class="badge-unreachable">健康检查不可达</span>
+    <span v-if="unreachable" class="badge-unreachable">健康检查不可达</span>
     <el-button link size="small" :loading="loading" @click="reload">刷新</el-button>
   </div>
 </template>
