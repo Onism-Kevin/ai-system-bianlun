@@ -331,3 +331,55 @@ def test_coach_turn_200_first_turn_no_assistant(session, client, user_and_header
     assert "focus" in body
     assert "hints" in body
     assert "quote_refs" in body
+
+
+# ---- 200：user 窗口溢出（21 条 → warning + 只用最近 20 条） ----
+
+
+def test_coach_turn_200_user_window_overflow(session, client, user_and_headers, monkeypatch):
+    """21 条 user 消息 → warning + 只用最近 20 条（窗口截断生效）。
+
+    验证 if len(all_user) > _USER_WINDOW 分支：
+    1. warning 日志被记录
+    2. 第 1 条（最旧）不在 prompt 中
+    3. 第 2-21 条（最近 20 条）在 prompt 中
+    """
+    import app.api.coach_turn as coach_module
+    from unittest.mock import patch
+
+    # 自定义 FakeProvider 捕获 prompt messages
+    captured_prompts = []
+
+    class _CapturingProvider:
+        def generate_stream(self, *, model, messages, temperature=0.7, timeout=120.0):
+            captured_prompts.append(messages)
+            yield '{"question": "q", "focus": "f", "hints": [], "quote_refs": []}'
+
+    monkeypatch.setattr(coach_module, "build_provider", lambda: _CapturingProvider())
+
+    user, cookies = user_and_headers
+    sess = _make_session(session, user.id)
+    # 创建 21 条 user 消息（内容唯一，便于断言）
+    for i in range(1, 22):
+        _add_user_message(session, sess.id, f"msg-{i:02d}")
+
+    with patch("app.api.coach_turn.logger.warning") as mock_warning:
+        resp = client.post(
+            f"/api/sessions/{sess.id}/coach_turn",
+            json={"mode": "coach"},
+            cookies=cookies,
+        )
+    assert resp.status_code == 200, resp.text
+
+    # 断言 warning 被调用（patch logger.warning，比 caplog 在 TestClient 下可靠）
+    assert mock_warning.called, "logger.warning 未被调用"
+    args = mock_warning.call_args[0]
+    formatted = args[0] % args[1:]
+    assert "超过 20 条" in formatted, f"warning 内容不符: {formatted}"
+
+    # 断言只用最近 20 条
+    assert len(captured_prompts) == 1
+    prompt_content = captured_prompts[0][1]["content"]  # user message content
+    assert "msg-01" not in prompt_content  # 第 1 条被截掉
+    assert "msg-02" in prompt_content      # 第 2 条保留
+    assert "msg-21" in prompt_content     # 第 21 条保留

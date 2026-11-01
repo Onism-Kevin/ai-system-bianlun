@@ -19,7 +19,6 @@ from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
-from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.deps import can_read_session, get_current_user
@@ -27,11 +26,11 @@ from app.core.database import get_db
 from app.core.exceptions import StructuredValidationError
 from app.core.model_provider import ModelProvider
 from app.core.structured import generate_structured
-from app.models.message import Message
 from app.models.session import TrainingSession
 from app.models.user import User
 from app.schemas.stage_outputs import CoachTurn
 from app.services.debate_runner import build_provider
+from app.services.message_query import query_messages
 
 router = APIRouter(prefix="/api/sessions", tags=["coach_turn"])
 
@@ -86,24 +85,18 @@ def coach_turn_session(
     if session is None or not can_read_session(db, user, session):
         raise _NOT_FOUND
 
-    # 读 user 消息（多查 1 条用于判断是否超限）
-    user_rows = db.scalars(
-        select(Message)
-        .where(
-            Message.session_id == session_id,
-            Message.role == "user",
-            Message.status != "streaming",
-        )
-        .order_by(Message.seq.desc())
-        .limit(_USER_WINDOW + 1)
-    ).all()
-    if len(user_rows) > _USER_WINDOW:
+    # 读 user 消息（MVP：查全量再截取——会话短，≤20 条成本可忽略）
+    # S5 若出现长会话（>100 条），需在 query_messages 加 order 参数
+    # 支持 DESC + LIMIT，避免全量加载。
+    all_user = query_messages(
+        db, session_id, role="user", exclude_streaming=True
+    )
+    if len(all_user) > _USER_WINDOW:
         logger.warning(
             "会话 user 消息超过 %d 条，coach 只读最近 %d 条",
             _USER_WINDOW, _USER_WINDOW,
         )
-        user_rows = user_rows[:_USER_WINDOW]
-    user_rows.reverse()  # 反转为升序
+    user_rows = all_user[-_USER_WINDOW:] if len(all_user) > _USER_WINDOW else all_user
 
     if not user_rows:
         raise HTTPException(
@@ -112,17 +105,10 @@ def coach_turn_session(
         )
 
     # 读 assistant 消息（最近 5 条，升序）
-    ai_rows = db.scalars(
-        select(Message)
-        .where(
-            Message.session_id == session_id,
-            Message.role == "assistant",
-            Message.status != "streaming",
-        )
-        .order_by(Message.seq.desc())
-        .limit(_AI_WINDOW)
-    ).all()
-    ai_rows.reverse()  # 反转为升序
+    all_ai = query_messages(
+        db, session_id, role="assistant", exclude_streaming=True
+    )
+    ai_rows = all_ai[-_AI_WINDOW:]
 
     # 合并：按 seq 升序交错（对话时序正确——学生说一句，AI 回一句）
     # 边界：若 assistant 消息的 seq 早于
