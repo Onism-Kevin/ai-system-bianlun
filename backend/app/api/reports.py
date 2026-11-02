@@ -30,7 +30,12 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import can_read_session, get_current_user
 from app.core.database import get_db
-from app.core.exceptions import StructuredValidationError
+from app.core.exceptions import (
+    ModelConnectionError,
+    ModelServerError,
+    ModelTimeoutError,
+    StructuredValidationError,
+)
 from app.core.model_provider import ModelProvider
 from app.core.structured import generate_structured
 from app.models.message import Message
@@ -71,6 +76,8 @@ _FORBIDDEN = HTTPException(
 )
 _UNPROCESSABLE = status.HTTP_422_UNPROCESSABLE_CONTENT
 _BAD_GATEWAY = status.HTTP_502_BAD_GATEWAY
+# permissions §3：504 = 上游模型超时（ModelTimeoutError / httpx.ReadTimeout）
+_GATEWAY_TIMEOUT = status.HTTP_504_GATEWAY_TIMEOUT
 
 
 def _load_rubric() -> dict:
@@ -265,6 +272,18 @@ def create_report(
         raise HTTPException(
             status_code=_BAD_GATEWAY,
             detail=str(exc),
+        ) from exc
+    except (ModelConnectionError, ModelServerError) as exc:
+        # permissions §3：502 = 上游模型服务错误（连接失败 / 网关 4xx-5xx）
+        raise HTTPException(
+            status_code=_BAD_GATEWAY,
+            detail=f"模型服务故障：{exc}",
+        ) from exc
+    except ModelTimeoutError as exc:
+        # permissions §3：504 = 上游模型超时
+        raise HTTPException(
+            status_code=_GATEWAY_TIMEOUT,
+            detail=f"模型服务超时：{exc}",
         ) from exc
 
     # 计算 overall_score = Σ(scores[d] × weight[d])

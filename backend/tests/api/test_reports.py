@@ -238,6 +238,61 @@ def test_reports_502_missing_dimension(session, client, user_and_headers, monkey
     assert resp.status_code == 502
 
 
+# ---- 502/504：模型传输层故障映射（permissions §3；2026-11-02 修复回归）----
+
+
+class _RaisingProvider:
+    """最小假 provider：generate_stream 直接抛指定异常。"""
+
+    def __init__(self, exc: Exception) -> None:
+        self._exc = exc
+
+    def generate_stream(self, *, model: str, messages: list[dict]):
+        raise self._exc
+
+
+def _post_report_with_raising_provider(session, client, user_and_headers, monkeypatch, exc):
+    import app.api.reports as reports_module
+
+    monkeypatch.setattr(
+        reports_module, "build_provider", lambda: _RaisingProvider(exc)
+    )
+    user, cookies = user_and_headers
+    sess = _make_session(session, user.id)
+    _add_user_message(session, sess.id, "学生的核心主张")
+    return client.post(f"/api/sessions/{sess.id}/reports", cookies=cookies)
+
+
+def test_reports_502_model_server_error(session, client, user_and_headers, monkeypatch):
+    """ModelServerError → 502（api.md:47：502 模型故障）。"""
+    from app.core.exceptions import ModelServerError
+
+    resp = _post_report_with_raising_provider(
+        session, client, user_and_headers, monkeypatch, ModelServerError("gateway 500")
+    )
+    assert resp.status_code == 502
+
+
+def test_reports_502_model_connection_error(session, client, user_and_headers, monkeypatch):
+    """ModelConnectionError → 502（permissions §3：连接失败=上游服务错误）。"""
+    from app.core.exceptions import ModelConnectionError
+
+    resp = _post_report_with_raising_provider(
+        session, client, user_and_headers, monkeypatch, ModelConnectionError("refused")
+    )
+    assert resp.status_code == 502
+
+
+def test_reports_504_model_timeout(session, client, user_and_headers, monkeypatch):
+    """ModelTimeoutError → 504（api.md:47 + permissions §3：超时）。"""
+    from app.core.exceptions import ModelTimeoutError
+
+    resp = _post_report_with_raising_provider(
+        session, client, user_and_headers, monkeypatch, ModelTimeoutError("read timeout")
+    )
+    assert resp.status_code == 504
+
+
 # ---- 404：private 会话越权 ----
 
 
