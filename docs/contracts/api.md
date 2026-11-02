@@ -40,9 +40,9 @@
 | `GET` | `/api/history` | — | 200 `[{id, topic, status, created_at, updated_at}]`（owner 视角；列表归 history.py，sessions.py 不提供列表防双入口） | 401 | S2-12 |
 | `GET` | `/api/history/{session_id}` | — | 200 `{session, messages:[按 seq 升序]}`（详情完整重建消息流） | 401；404 | S2-12 |
 | `GET` | `/api/sessions/{id}/events` | query `after_seq=0` | `text/event-stream`（事件表/心跳/回放/重连**全部**见 sse_events.md，不在此重复定义） | 建流前按 §3：401 未登录/Cookie 无效；404 会话不存在或 private 越权；403 已存在但角色不符；流中 error 事件（sse §6） | S2-4/S2-5；sse_events.md（E-9 取代 S2-4"每事件 id"验收句） |
-| `POST` | `/api/sessions/{id}/explore` | 无 body（读会话 topic） | 200 `{concepts[], scope, subquestions[], stakeholders[]}`（ExploreOut 独立 schema） | 401；404；422 空 topic / 超 5000 字 | S2-7 验收；§4-1 裁定（ExploreOut，非 DecomposeOut） |
-| `POST` | `/api/sessions/{id}/analyze` | 无 body | 200 `{nodes:[{id, type∈claim/evidence/rebuttal, text, source_ref:{message_seq, quote}}], edges:[{source, target, relation∈{支持,反驳,补充,依赖,限制,需要证据}}]}` | 401；404；422 | S2-8 验收 + S2-F5 引用跳转；schema 扩展见 E-11 |
-| `POST` | `/api/sessions/{id}/coach_turn` | `{mode:"coach"\|"rebuttal"}` | 200 `{question, focus, hints[], quote_refs:[{seq, quote}]}`（追问含学生原文引用） | 401；404；422 | S2-9 验收；schema 扩展见 E-11 |
+| `POST` | `/api/sessions/{id}/explore` | 无 body（读会话 topic） | 200 `{concepts[], scope, subquestions[], stakeholders[]}`（ExploreOut 独立 schema） | 401；404；422 空 topic / 超 5000 字；502/504（模型传输层故障，permissions §3） | S2-7 验收；§4-1 裁定（ExploreOut，非 DecomposeOut） |
+| `POST` | `/api/sessions/{id}/analyze` | 无 body | 200 `{nodes:[{id, type∈claim/evidence/rebuttal, text, source_ref:{message_seq, quote}}], edges:[{source, target, relation∈{支持,反驳,补充,依赖,限制,需要证据}}]}` | 401；404；422；502/504（模型传输层故障，permissions §3） | S2-8 验收 + S2-F5 引用跳转；schema 扩展见 E-11 |
+| `POST` | `/api/sessions/{id}/coach_turn` | `{mode:"coach"\|"rebuttal"}` | 200 `{question, focus, hints[], quote_refs:[{seq, quote}]}`（追问含学生原文引用） | 401；404；422；502/504（模型传输层故障，permissions §3） | S2-9 验收；schema 扩展见 E-11 |
 | `GET` | `/api/sessions/{id}/wordcloud` | — | 200 `{url:"/static/wordclouds/session_{id}.png"}`；未生成 → 404 | 401；404 | sse_events §5.6（URL 形态由本契约定：`/static/wordclouds/`；SSE 事件之外的补查入口） |
 | `POST` | `/api/sessions/{id}/reports` | 无 body | 201 `{report}`（同步生成；长耗时，前端经 SSE `report_progress/ready` 跟进，UI 硬约束 S2-F7） | 401；403 非 owner；404；502/504 模型故障 | S2-10；E-5（无 UNIQUE，重跑=新行） |
 | `GET` | `/api/sessions/{id}/reports` | — | 200 `{report}`（created_at 最新一份） | 401；404 无报告 | S2-F7/S3-5 |

@@ -382,4 +382,63 @@ def test_coach_turn_200_user_window_overflow(session, client, user_and_headers, 
     prompt_content = captured_prompts[0][1]["content"]  # user message content
     assert "msg-01" not in prompt_content  # 第 1 条被截掉
     assert "msg-02" in prompt_content      # 第 2 条保留
-    assert "msg-21" in prompt_content     # 第 21 条保留
+    assert "msg-21" in prompt_content      # 第 21 条保留
+
+
+# ---- 502/504：模型传输层故障映射（permissions §3；2026-11-02 修复回归）----
+
+
+class _RaisingProvider:
+    """最小假 provider：generate_stream 直接抛指定异常。"""
+
+    def __init__(self, exc: Exception) -> None:
+        self._exc = exc
+
+    def generate_stream(self, *, model: str, messages: list[dict]):
+        raise self._exc
+
+
+def _post_coach_with_raising_provider(session, client, user_and_headers, monkeypatch, exc):
+    import app.api.coach_turn as coach_module
+
+    monkeypatch.setattr(
+        coach_module, "build_provider", lambda: _RaisingProvider(exc)
+    )
+    user, cookies = user_and_headers
+    sess = _make_session(session, user.id)
+    _add_user_message(session, sess.id, "学生的核心主张")
+    return client.post(
+        f"/api/sessions/{sess.id}/coach_turn",
+        json={"mode": "coach"},
+        cookies=cookies,
+    )
+
+
+def test_coach_turn_502_model_server_error(session, client, user_and_headers, monkeypatch):
+    """ModelServerError → 502（api.md:45 端点列 2026-11-02 补登）。"""
+    from app.core.exceptions import ModelServerError
+
+    resp = _post_coach_with_raising_provider(
+        session, client, user_and_headers, monkeypatch, ModelServerError("gateway 500")
+    )
+    assert resp.status_code == 502
+
+
+def test_coach_turn_502_model_connection_error(session, client, user_and_headers, monkeypatch):
+    """ModelConnectionError → 502（permissions §3：连接失败=上游服务错误）。"""
+    from app.core.exceptions import ModelConnectionError
+
+    resp = _post_coach_with_raising_provider(
+        session, client, user_and_headers, monkeypatch, ModelConnectionError("refused")
+    )
+    assert resp.status_code == 502
+
+
+def test_coach_turn_504_model_timeout(session, client, user_and_headers, monkeypatch):
+    """ModelTimeoutError → 504（api.md:45 + permissions §3：超时）。"""
+    from app.core.exceptions import ModelTimeoutError
+
+    resp = _post_coach_with_raising_provider(
+        session, client, user_and_headers, monkeypatch, ModelTimeoutError("read timeout")
+    )
+    assert resp.status_code == 504

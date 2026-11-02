@@ -23,7 +23,12 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import can_read_session, get_current_user
 from app.core.database import get_db
-from app.core.exceptions import StructuredValidationError
+from app.core.exceptions import (
+    ModelConnectionError,
+    ModelServerError,
+    ModelTimeoutError,
+    StructuredValidationError,
+)
 from app.core.model_provider import ModelProvider
 from app.core.structured import generate_structured
 from app.models.session import TrainingSession
@@ -45,6 +50,9 @@ _NOT_FOUND = HTTPException(
     detail="会话不存在或无权访问",
 )
 _UNPROCESSABLE = status.HTTP_422_UNPROCESSABLE_CONTENT
+# permissions §3：模型传输层故障映射（与 reports.py 同款）
+_BAD_GATEWAY = status.HTTP_502_BAD_GATEWAY
+_GATEWAY_TIMEOUT = status.HTTP_504_GATEWAY_TIMEOUT
 
 
 class CoachTurnRequest(BaseModel):
@@ -149,9 +157,22 @@ def coach_turn_session(
             lambda msgs: _generate_text(provider, settings.model_default, msgs),
         )
     except StructuredValidationError as exc:
+        # E-23：短同步调用的 StructuredValidationError → 422（"格式不对可重试"）
         raise HTTPException(
             status_code=_UNPROCESSABLE,
             detail=str(exc),
+        ) from exc
+    except (ModelConnectionError, ModelServerError) as exc:
+        # permissions §3：502 = 上游模型服务错误（连接失败 / 网关 4xx-5xx）
+        raise HTTPException(
+            status_code=_BAD_GATEWAY,
+            detail=f"模型服务故障：{exc}",
+        ) from exc
+    except ModelTimeoutError as exc:
+        # permissions §3：504 = 上游模型超时
+        raise HTTPException(
+            status_code=_GATEWAY_TIMEOUT,
+            detail=f"模型服务超时：{exc}",
         ) from exc
 
     # 后置过滤 quote_refs：message_seq 不在 user_seq_set 的条目被移除

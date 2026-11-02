@@ -66,12 +66,17 @@
 | student | sessions/{id}/events（SSE） | subscribe | 同本人 sessions/{id} read；建流前鉴权，失败 403（sse_events §9） |
 | teacher | sessions/{id}/events（SSE） | subscribe | 同教师 sessions/{id} read（§5.3 教师可见集合）；建流前鉴权 |
 | student | messages | list / read | 本人为所属会话 owner（owner_id = 本人）；否则 404 |
+| student | messages | create | 本人为所属会话 owner（owner_id = 本人）；非 waiting → 409（api.md:35 状态机错位） |
 | teacher | messages | list / read | 随教师会话可见规则（§5.3 教师可见集合内全部消息） |
 | student | revisions | create / update | 本人为所属会话 owner；默认 status='draft'（E-5） |
 | teacher | revisions | read | 随教师会话可见规则（批阅练习过程） |
 | student | reports | create | 本人为所属会话 owner |
 | student | reports | read | 本人为所属会话 owner；多份取最新一份（无 UNIQUE） |
 | teacher | reports | read | 随教师会话可见规则 |
+| student | reflection | create / read | 本人为会话 owner（reflection 是学生私人内容） |
+| teacher | reflection | read | 拒绝——reflection 私密，教师不可读；可读 session 时 403，不可读时 404 |
+| student | history | read | 本人为会话 owner（owner 视角，api.md:40-41） |
+| student | stage（explore/analyze/coach_turn） | create | 会话可见即可（can_read_session）；模型传输层故障 → 502/504（permissions §3） |
 | student | task_submissions | upsert | student_id = 本人；INSERT ON DUPLICATE KEY UPDATE（E-5：UNIQUE(task_id,student_id)） |
 | student | task_submissions/{task} | read | 仅本人提交记录；他人记录 404 |
 | teacher | task_submissions | list | 任务属于本人课程（教师）；**仅已提交行可见，未提交无行（S3-4 用例 404）** |
