@@ -14,7 +14,7 @@ import type { NormalizedReport, ReportSection } from '../api/types'
 //    不是同一个东西——见 api/types.ts NormalizedReport 注释。
 // ⚠️ errata E-28：后端无 report_progress/ready SSE，POST 同步阻塞（中位 30.8s）——
 //    本组件用骨架屏 +「约 30 秒」提示替代进度推送。
-const props = defineProps<{ sessionId: number }>()
+const props = defineProps<{ sessionId: number; sessionStatus: string }>()
 const emit = defineEmits<{ (e: 'unauthorized'): void }>()
 
 // rubric v1.0 四维度（与 backend/app/rubric/rubric.json 逐字对应；前端无 rubric 端点，F6）。
@@ -29,6 +29,15 @@ const report = ref<NormalizedReport | null>(null)
 const loaded = ref(false)
 const generating = ref(false)
 const error = ref<string | null>(null)
+
+/**
+ * 会话未达终态（waiting/generating/paused）时不允许生成报告——先完成训练。
+ * finished / failed 是终态：failed 也可复盘"哪里出了问题"（报告可能 502，
+ * 页面内已有错误处理）。
+ */
+const canGenerate = computed(
+  () => props.sessionStatus === 'finished' || props.sessionStatus === 'failed',
+)
 
 onMounted(loadLatest)
 
@@ -186,11 +195,22 @@ function scoreTagType(score: number): 'success' | 'warning' | 'danger' | 'info' 
         size="small"
         type="primary"
         :loading="generating"
+        :disabled="!canGenerate"
         @click="generate"
       >
         {{ report ? '重新生成报告' : '生成报告' }}
       </el-button>
     </template>
+
+    <!-- 会话未达终态：报告区可访问，但不允许生成（先完成训练） -->
+    <el-alert
+      v-if="!canGenerate"
+      title="训练未完成，请先完成训练"
+      :description="`当前会话状态为 ${sessionStatus}。完成训练后可生成复盘报告。`"
+      type="warning"
+      show-icon
+      class="banner"
+    />
 
     <!-- 页面内错误（502/504 等）——具体原因 + 重试 -->
     <el-alert

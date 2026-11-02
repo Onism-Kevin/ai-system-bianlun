@@ -369,9 +369,9 @@ const canRestart = computed(() => status.value !== 'generating')
       </div>
       <div class="hdr-actions">
         <el-button link type="primary" @click="router.push('/dashboard')">← 工作台</el-button>
-        <!-- S2-F7 复盘入口：训练结束后（status=finished）显示"查看复盘" -->
+        <!-- S2-F7 复盘入口：训练达终态（finished / failed）显示"查看复盘" -->
         <el-button
-          v-if="status === 'finished' && session"
+          v-if="(status === 'finished' || status === 'failed') && session"
           link
           type="success"
           @click="router.push('/review?id=' + session.id)"

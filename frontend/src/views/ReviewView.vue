@@ -94,8 +94,13 @@ const submitHint = () => {
 
       <ReflectionForm class="block" :session-id="session.id" @unauthorized="onUnauthorized" />
 
-      <!-- 报告区（ReportPanel：双渲染 + 502 错误 + 生成按钮） -->
-      <ReportPanel class="block" :session-id="session.id" @unauthorized="onUnauthorized" />
+      <!-- 报告区（ReportPanel：双渲染 + 502 错误 + 生成按钮 + 未完成守卫） -->
+      <ReportPanel
+        class="block"
+        :session-id="session.id"
+        :session-status="session.status"
+        @unauthorized="onUnauthorized"
+      />
 
       <el-card>
         <template #header>提交给课程任务</template>
