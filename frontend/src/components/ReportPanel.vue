@@ -54,6 +54,24 @@ async function loadLatest() {
   }
 }
 
+/**
+ * 报告生成的错误文案（Q3 裁定 B：页面内只描述"本次请求"，不重复全局横幅的服务状态）。
+ * - 502/504 → "报告生成失败，请稍后重试"——不重复"模型服务不可用"，全局
+ *   ModelGatewayBanner 已显示服务状态；
+ * - 403/404/网络 → describeApiError（403 透传后端 detail「仅会话所有者可生成报告」，
+ *   404 「资源不存在或无权访问」）；
+ * - 401 → 由 isUnauthorized 拦截跳 /login（不进本函数）。
+ */
+function describeReportError(err: unknown): string {
+  if (err instanceof AxiosError) {
+    const status = err.response?.status
+    if (status === 502 || status === 504) {
+      return '报告生成失败，请稍后重试'
+    }
+  }
+  return describeApiError(err)
+}
+
 async function generate() {
   generating.value = true
   error.value = null
@@ -67,7 +85,7 @@ async function generate() {
       emit('unauthorized')
       return
     }
-    error.value = describeApiError(err)
+    error.value = describeReportError(err)
   } finally {
     generating.value = false
   }

@@ -47,8 +47,11 @@ function selectRevision(rev: RevisionListItem) {
 }
 
 function newDraft() {
+  // Q4 裁定 B：新建版本 = 复制当前选中版本的内容作为起点（"在上一版基础上改"）。
+  // 未选中任何版本时从零开始（空）。
+  const source = selected.value
   selectedId.value = null
-  draftContent.value = ''
+  draftContent.value = source?.content ?? ''
   draftStatus.value = 'draft'
   patchDiff.value = null
   error.value = null
