@@ -93,6 +93,21 @@ def test_health_no_auth(session, client):
     assert "model_gateway" in body
 
 
+# ---- 回归：真实探测（非 monkeypatch）----
+
+
+def test_health_mysql_real_probe_ok(session):
+    """回归：_probe_mysql 真实调用（不 monkeypatch）→ "ok"。
+
+    2026-11-02 修复：原实现 `from app.core.database import engine` 导入不存在的
+    模块级 engine（database.py 只有 get_engine()），ImportError 被 except 吞掉
+    → health 永远报 mysql=down。此前测试用 monkeypatch 掩盖了该 bug。
+    """
+    import app.api.health as health_module
+
+    assert health_module._probe_mysql() == "ok"
+
+
 # ---- error_map：数据库异常分类（errata E-6）----
 
 

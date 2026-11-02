@@ -19,9 +19,9 @@ router = APIRouter(prefix="/api", tags=["health"])
 def _probe_mysql() -> str:
     """探测 MySQL：SELECT 1 → ok/down。"""
     try:
-        from app.core.database import engine
+        from app.core.database import get_engine
 
-        with engine.connect() as conn:
+        with get_engine().connect() as conn:
             conn.execute(text("SELECT 1"))
         return "ok"
     except Exception:
