@@ -11,7 +11,7 @@ import type { HistoryDetailOut, HistoryItem, MessageOut } from '../api/types'
 // - 详情：点击行 → GET /api/history/{id} → {session, messages:[按 seq 升序]}，
 //   完整重建消息流（含 streaming 在途消息，用 badge 标注「生成中」）；
 // - 列表是 owner 视角（后端只返回 owner_id=本人的会话），越权一律 404 存在性隐藏。
-// 反思/复盘入口留给 S2-F7；本页只做列表→详情回放。
+// - 复盘入口：每行「复盘」按钮 → /review?id=X（S2-F7 补齐）。
 const router = useRouter()
 
 const items = ref<HistoryItem[]>([])
@@ -54,6 +54,11 @@ async function onRowClick(row: HistoryItem) {
   } finally {
     detailLoading.value = false
   }
+}
+
+// S2-F7 复盘入口：历史页每行「复盘」链接 → /review?id=X（"过几天回来看复盘"路径）。
+function goReview(row: HistoryItem) {
+  router.push('/review?id=' + row.id)
 }
 
 function statusTagType(
@@ -126,8 +131,18 @@ function agentTagType(
         </el-table-column>
         <el-table-column prop="created_at" label="创建时间" width="180" />
         <el-table-column prop="updated_at" label="更新时间" width="180" />
+        <el-table-column label="操作" width="90">
+          <template #default="{ row }">
+            <!-- @click.stop：不触发行点击（行点击是展开详情） -->
+            <el-button link type="success" size="small" @click.stop="goReview(row)">
+              复盘
+            </el-button>
+          </template>
+        </el-table-column>
       </el-table>
-      <p class="muted">点击行加载详情（消息按 seq 升序完整重建，含在途 streaming 消息）。</p>
+      <p class="muted">
+        点击行加载详情（消息按 seq 升序完整重建，含在途 streaming 消息）；点「复盘」进入报告页。
+      </p>
     </el-card>
 
     <el-card v-if="detailLoading" class="detail">

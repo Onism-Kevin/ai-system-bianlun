@@ -367,7 +367,18 @@ const canRestart = computed(() => status.value !== 'generating')
         <h1>训练页 · 人机论证训练</h1>
         <span class="sub">SSE 实时消息流（sse_events.md §4-§8）</span>
       </div>
-      <el-button link type="primary" @click="router.push('/dashboard')">← 工作台</el-button>
+      <div class="hdr-actions">
+        <el-button link type="primary" @click="router.push('/dashboard')">← 工作台</el-button>
+        <!-- S2-F7 复盘入口：训练结束后（status=finished）显示"查看复盘" -->
+        <el-button
+          v-if="status === 'finished' && session"
+          link
+          type="success"
+          @click="router.push('/review?id=' + session.id)"
+        >
+          查看复盘 →
+        </el-button>
+      </div>
     </div>
 
     <!-- S2-F9：全局健康横幅 + health 徽标（模型网关 down/degraded 警告条） -->
@@ -490,6 +501,10 @@ const canRestart = computed(() => status.value !== 'generating')
   flex-wrap: wrap;
   gap: 8px;
   margin: 20px 0 12px;
+}
+.hdr-actions {
+  display: flex;
+  gap: 4px;
 }
 .hdr h1 {
   font-size: 20px;
