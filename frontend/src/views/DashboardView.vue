@@ -7,25 +7,27 @@ import { createSession } from '../api/sessions'
 import {
   demoError403,
   demoError410,
-  fetchHistory,
   fetchStudentCourses,
   fetchTeacherCourses,
   joinCourse,
   joinTask,
 } from '../api/dashboard'
-import type { CourseItem, SessionHistoryItem } from '../api/dashboard'
+import type { CourseItem } from '../api/dashboard'
+import { listHistory } from '../api/history'
+import type { HistoryItem } from '../api/types'
 import { describeApiError, isUnauthorized } from '../api/errors'
 import ModelGatewayBanner from '../components/ModelGatewayBanner.vue'
 
 // S2-F3 dashboard：参考 S1-10 原型 docs/prototypes/dashboard.html。
 // - 双角色徽标 + 双角色视角切换（roles 来自 /auth/me，真实数据）
-// - 历史列表 / 加入课程 / 加入任务：假数据走通（端点属 S2-12/S3，api/dashboard.ts）
+// - 历史列表：真实 GET /api/history（S2-12 已交付，#7 T-6 修复）；
+//   加入课程 / 加入任务仍为假数据（端点属 S3-2/S3-3，api/dashboard.ts）
 // - 创建训练会话：真打 POST /api/sessions（S2-3 已交付），成功跳 /training?id=
 // - 错误码演示：403/410 经真 AxiosError 构造，走同一条 describeApiError 路径
 const auth = useAuthStore()
 const router = useRouter()
 
-const history = ref<SessionHistoryItem[]>([])
+const history = ref<HistoryItem[]>([])
 const studentCourses = ref<CourseItem[]>([])
 const teacherCourses = ref<CourseItem[]>([])
 // 双角色视角：仅双角色用户显示切换器；单角色默认自身视角
@@ -65,12 +67,14 @@ function syncView() {
 const isDualRole = () => auth.roles.includes('student') && auth.roles.includes('teacher')
 
 async function loadFakeData() {
-  history.value = await fetchHistory()
+  // 历史列表接真实 GET /api/history（S2-12 已交付，T-6 修复）；
+  // 课程/加入仍为假数据（S3 端点未交付）。
+  history.value = await listHistory()
   if (auth.roles.includes('student')) studentCourses.value = await fetchStudentCourses()
   if (auth.roles.includes('teacher')) teacherCourses.value = await fetchTeacherCourses()
 }
 
-function onHistoryRowClick(row: SessionHistoryItem) {
+function onHistoryRowClick(row: HistoryItem) {
   router.push(`/training?id=${row.id}`)
 }
 
@@ -168,14 +172,21 @@ function roleTagType(role: string): 'primary' | 'warning' | 'info' {
     <template v-if="activeView === 'student' && auth.roles.includes('student')">
       <div class="grid">
         <el-card>
-          <template #header>我的训练（假数据 · GET /api/history 属 S2-12）</template>
+          <template #header>
+            我的训练（真实 · GET /api/history）
+            <el-button link type="primary" size="small" @click="router.push('/history')">
+              查看全部历史 →
+            </el-button>
+          </template>
           <el-table :data="history" style="width: 100%" @row-click="onHistoryRowClick">
             <el-table-column prop="id" label="id" width="70" />
             <el-table-column prop="topic" label="议题" />
             <el-table-column prop="status" label="状态" width="110" />
             <el-table-column prop="updated_at" label="更新时间" width="170" />
           </el-table>
-          <p class="muted">点击行进入训练页（S2-F4 起补真实消息流）。</p>
+          <p class="muted">
+            点击行进入训练页（继续这个会话）；表头「查看全部历史」看所有历史（S2-F8）。
+          </p>
         </el-card>
 
         <el-card>
