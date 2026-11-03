@@ -45,6 +45,10 @@
   → "应用层校验函数拒绝该组合（DB 无 CHECK，见 E-2）"。
 - S1-3 任务行："visibility CHECK 生效" → "visibility 应用层校验函数生效"。
 - S1-5 表数勘误：14 → **15** 张（v1.1 追加 task_submissions 漏改计数；用户此前已确认）。
+- 口径注（S3-0，2026-11-03）：15 = **12**（S1-5 实际建表，
+  `backend/alembic/versions/5f605c7da13a_initial_12_tables.py` 的 12 张）
+  + **3**（S4 图谱表 argument_nodes / argument_edges / evidence_sources，
+  S1-5 不建）。数字不改，仅补口径。
 
 ## E-5 对 v1.1 的增量补充（非取代，用户 2026-10-12 拍板）
 

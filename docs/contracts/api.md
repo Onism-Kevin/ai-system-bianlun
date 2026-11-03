@@ -25,6 +25,7 @@
 | `POST` | `/api/auth/register` | `{username, password}` | 201 `{id, username, roles[]}`³ | 409 重名；422 校验 | S2-1；permissions §4（bcrypt 存储） |
 | `POST` | `/api/auth/login` | `{username, password}` | 200 `{user}` + `set_cookie(httpOnly, SameSite=Lax)` | 401 凭据错；422 | S2-1；permissions §6.3；E-10 |
 | `GET` | `/api/auth/me` | —（Cookie） | 200 `{user, roles[]}` | 401 | S2-1/S3-1；E-10（取代计划书 Authorization 验收句） |
+| `POST` | `/api/user_roles` | `{user_id, role}`（`role` ∈ `teacher`/`admin`） | 201 `{user_id, role, granted_at}` | 401 未登录；403 非 admin；404 user 不存在；409 已有该角色（UNIQUE(user_id, role)，E-5 同款）；422 role 非法 | S3-1；permissions §4（admin grant）；用户 2026-11-03 裁定 1（漏收补登，非取代） |
 | `POST` | `/api/sessions` | `{topic, mode="debate", max_turns=1, visibility="private", task_id=null}`¹ | 201 `{id, status}`³ | 401；422 topic 空/超长或 visibility 违反 E-2 | S2-2/S2-3；E-2（validate_session_visibility） |
 | `GET` | `/api/sessions/{id}` | — | 200 `{id, topic, visibility, task_id, status, created_at, updated_at}` | 401；404 越权（private→教师 404） | permissions §5 |
 | `PATCH` | `/api/sessions/{id}` | `{topic?, visibility?, task_id?}`（**status 不可 patch**——状态机独占，S2-2） | 200 `{session}` | 401；403 非 owner；422 E-2 违反；404 | E-2 |
@@ -51,13 +52,13 @@
 | `PATCH` | `/api/revisions/{id}` | `{content?, status?}` | 200 `{revision, diff_vs_prev}`（草稿自动保存入口） | 401；403；404 | S2-11 |
 | `GET` | `/api/revisions` | query `session_id` | 200 `[{id, version, status, content, created_at, diff_vs_prev}]`（diff=相对上一版 unified diff，首版 null） | 401；404 | S2-11 验收（2 版本 + diff 字段） |
 | `GET` | `/api/revisions/{id}` | — | 200 `{revision, diff_vs_prev}` | 401；404 | S2-11 |
-| `POST` | `/api/courses` | `{name, description?, term?}` | 201 `{id, name, invite_code, …}`（invite_code 服务端生成 6~8 位 A-Z0-9 剔 I/O/0/1） | 401；403 非 teacher 角色 | S3-2；course.py 注记 |
+| `POST` | `/api/courses` | `{name, description?, term?}` | 201 `{id, name, invite_code, …}`（invite_code 服务端生成 6~8 位 A-Z0-9 剔 I/O/0/1） | 401；403 非 teacher 角色；422 入参校验 | S3-2；course.py 注记 |
 | `GET` | `/api/courses` | — | 200 `[{course}]`（teacher→本人教的；student→已加入的） | 401 | S3-2；permissions §4 |
 | `GET` | `/api/courses/{id}` | — | 200 `{course}`（invite_code 仅课程教师响应保留，学生响应剔除） | 401；404 | permissions §4 |
 | `PATCH` | `/api/courses/{id}` | `{name?, description?, term?, is_archived?}` | 200 `{course}`（MVP 无删除端点；删带任务课程被 FK RESTRICT 拒） | 401；403 非 teacher_id；404 | S3-2；E-8 |
 | `GET` | `/api/courses/{id}/members` | — | 200 `[{user_id, username, joined_at}]`（**仅学生行**，course_members 无教师行） | 401；403/404 非课程教师 | permissions §2/§4 |
 | `POST` | `/api/courses/join` | `{invite_code}` | 200 `{course_id}`（幂等：重复加入仍 200） | 401；**403 错码**² | S3-2；E-12（对称化） |
-| `POST` | `/api/courses/{course_id}/tasks` | `{title, material?, deadline?, need_join_code?}` | 201 `{id, title, join_code, …}`（need_join_code 时服务端生成 String(8)） | 401；403 非课程教师；404 | S3-3；permissions §4 |
+| `POST` | `/api/courses/{course_id}/tasks` | `{title, material?, deadline?, need_join_code?}` | 201 `{id, title, join_code, …}`（need_join_code 时服务端生成 String(8)） | 401；403 非课程教师；404；422 入参校验 | S3-3；permissions §4 |
 | `GET` | `/api/courses/{course_id}/tasks` | — | 200 `[{task}]`（教师→本人课程任务；学生→成员课程全部任务） | 401；404 | permissions §4 |
 | `GET` | `/api/tasks/{id}` | — | 200 `{task}`（join_code 仅课程教师响应保留） | 401；404 非课程成员 | S3-3；§9 Q1 已决（课程成员为主路径） |
 | `PATCH` | `/api/tasks/{id}` | `{title?, material?, deadline?, is_archived?}` | 200 `{task}`（删除走归档） | 401；403 非课程教师；404 | E-8（CASCADE 连带删除风险，归档替代） |
@@ -65,7 +66,7 @@
 | `POST` | `/api/tasks/{task_id}/submissions` | `{session_id}` | 200 `{id, session_id, submitted_at, replaced:boolean}`（**upsert**：UNIQUE(task_id,student_id)，重复/换会话重做=更新旧行；旧会话 visibility 处置见 S3-4 备注） | 401；404 会话非 owner / 非课程成员（存在性隐藏） | E-5 补充 2（必须 upsert）；S3-4 |
 | `GET` | `/api/tasks/{task_id}/submissions` | — | 200 `[{student_id, session_id, submitted_at}]`（教师：**仅已提交行**，未提交无行） | 401；403 非课程教师；404 | permissions §4；S3-4 |
 | `GET` | `/api/tasks/{task_id}/submissions/me` | — | 200 `{submission}`；未提交 → 404（不暴露存在性） | 401；404 | S5-1 越权/缺失用例 |
-| `POST` | `/api/tasks/{task_id}/feedback` | `{scores, comment}` | 200 `{id}`（**upsert**：UNIQUE(task_id,student_id)，一生一任务一份；学生反馈） | 401；404 未提交该任务 / 非课程成员 | schema_v3 表 4；permissions §4（选项 A） |
+| `POST` | `/api/tasks/{task_id}/feedback` | `{scores, comment}` | 200 `{id}`（**upsert**：UNIQUE(task_id,student_id)，一生一任务一份；学生反馈） | 401；404 未提交该任务 / 非课程成员；422 入参校验 | schema_v3 表 4；permissions §4（选项 A） |
 | `GET` | `/api/tasks/{task_id}/feedback` | — | 200 `[{student_id, scores, comment, created_at}]`（教师读；S3-5 汇总对象） | 401；403 非课程教师；404 | permissions §4 |
 | `GET` | `/api/courses/{course_id}/summary` | query `task_id?` | 200 `{submitted_count, total_students, top_pending_verification:[{text, count}]}`（提交数/常见待核实项 Top5） | 401；403 非课程教师；404 | S3-5；permissions §4 |
 | `POST` | `/api/sessions/{session_id}/graph` | 无 body | 201 `{graph_id}`（抽取落库 argument_nodes/edges/evidence_sources） | 401；403 非 owner；404；502/504 模型故障 | S4-1/S4-2 |
@@ -105,7 +106,7 @@
 ## 5. 验收锚点（S1-7 本档 + S1-10 v1.2 补登）
 
 - [x] `grep -c '^| \`' docs/contracts/api.md` ≥ 25（修订后实测 50 行，2026-10-13；v1.2 补登 3 行）
-- [x] 端点覆盖：auth 3 / sessions 7→10（v1.1 声称"sessions 8"是笔误，总表实际 7 行；v1.2 补登 messages + reflection×2 共 3 行；含 pause/resume/restart/quick/messages/reflection）/ messages 2 / history 2 / SSE 1 / stage 3 / wordcloud 1 / reports 3 / revisions 4 / courses 6 / tasks 5 / submissions 3 / feedback 2 / summary 1 / graph 3 / health 1（合计 50）
+- [x] 端点覆盖：auth 3 / user_roles 1 / sessions 7→10（v1.1 声称"sessions 8"是笔误，总表实际 7 行；v1.2 补登 messages + reflection×2 共 3 行；含 pause/resume/restart/quick/messages/reflection）/ messages 2 / history 2 / SSE 1 / stage 3 / wordcloud 1 / reports 3 / revisions 4 / courses 6 / tasks 5 / submissions 3 / feedback 2 / summary 1 / graph 3 / health 1 / user_roles 1（合计 51）
 - [x] `Authorization` 仅出现在否定/备案语境（§0 否定声明、§1 auth/me 行的 E-10 取代说明、§4-6 备案），无任何"携带 Authorization 头"的正向要求
 - [x] 每端点行含错误码 + 依据/errata 列，无空单元格
 - [x] §4 六项裁定已全部落地（E-11/E-12 入 errata，permissions.md 两处同步修改）

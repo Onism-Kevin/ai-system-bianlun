@@ -49,12 +49,16 @@
 | teacher | user_roles | read | 只读本人角色行；教师不得授予他人角色 |
 | student | user_roles | read | 只读本人角色行；学生不得自助授予 |
 | teacher | courses | create | 本人具有 teacher（教师）全局角色 |
+| teacher | courses | list | courses.teacher_id = 本人（本人所教课程） |
+| student | courses | list | course_members 含本人（已加入的课程） |
 | teacher | courses/{id} | update | courses.teacher_id = 本人；改名/归档，无删除（FK RESTRICT，E-8 同族：归档替代删除） |
 | teacher | courses/{id} | read | courses.teacher_id = 本人 |
 | student | courses/{id} | read | course_members 含本人（学生凭课程加入码入组） |
 | teacher | courses/{id}/members | list | courses.teacher_id = 本人；成员表仅学生行 |
 | student | course_members | join | 持有效课程加入码；重复加入幂等（UNIQUE(course_id,user_id)） |
 | teacher | tasks | create | 本人为所属课程教师（courses.teacher_id = 本人） |
+| teacher | tasks | list | 课程教师（本人课程的全部任务） |
+| student | tasks | list | 课程成员（course_members 含本人；成员课程的全部任务） |
 | teacher | tasks/{id} | update | 本人为所属课程教师；含 deadline/is_archived；删除走归档（E-8） |
 | teacher | tasks/{id} | read | 本人为所属课程教师 |
 | student | tasks/{id} | read | 任务课程的成员为主路径；join_code 仅作入组校验（§9 Q1 已决） |
