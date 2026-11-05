@@ -183,6 +183,25 @@
   consistency_check:66 + permissions:63/64。
 - **日期/拍板人**：用户，2026-10-13（S2-1 收口审阅）。
 
+## E-16 资源级 403/404 分层：先判可读（404），再判动作（403）
+
+- **规则**：资源级写动作的授权分两层判定，顺序不可颠倒——
+  ① 资源可读性判定（`can_read_session` 或课程/任务的等价可读函数）不通过
+  → **404**（存在性隐藏，permissions §3）；
+  ② 资源可读但当前角色/归属不符该动作 → **403**（permissions §3"动作不符"）。
+- **依据**：`backend/app/api/revisions.py`（S2-11）既有实现
+  「`get_current_user` → `can_read_session`（404）→ owner 校验（403）」，
+  并由 `backend/tests/api/test_revisions.py:194`
+  （`test_patch_revision_403_non_owner_task_session`：教师对**可读**的
+  task 会话 PATCH revision → 403）落地验证。
+- **适用范围**：S3 全部资源级端点（courses/tasks/submissions/feedback/summary）。
+  例外：**全局角色门槛**（如 `POST /api/courses` 的 teacher 角色）没有具体
+  资源可读性判定，非 teacher 直接 403（`require_role`，permissions §8 第二层）。
+- **S3-0 漏收补登（2026-11-05）**：errata.md 此前**无 E-16 条目**（E-15 之后
+  直接 E-17），但 `test_revisions.py:195` 的 docstring 早已引用"E-16 分层"。
+  本次按既有实现语义补全，属"补全"而非"取代"。
+- **日期/拍板人**：用户，2026-11-05（S3-2 开工前确认分层口径）。
+
 ## E-17 api.md:30 PATCH /api/sessions/{id} 出参 {session} → 平铺（取代）
 
 - **原文问题**：api.md 契约自身不一致——GET /api/sessions/{id}（:29）返回平铺
