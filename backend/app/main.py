@@ -16,6 +16,7 @@ from app.api import (
     analyze,
     auth,
     coach_turn,
+    courses,
     events,
     explore,
     health,
@@ -39,6 +40,7 @@ app.add_middleware(
 
 app.include_router(auth.router)
 app.include_router(user_roles.router)
+app.include_router(courses.router)
 app.include_router(sessions.router)
 app.include_router(events.router)
 app.include_router(explore.router)
