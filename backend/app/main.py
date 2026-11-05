@@ -23,6 +23,7 @@ from app.api import (
     reports,
     revisions,
     sessions,
+    user_roles,
 )
 from app.services.error_map import classify_db_error
 
@@ -37,6 +38,7 @@ app.add_middleware(
 )
 
 app.include_router(auth.router)
+app.include_router(user_roles.router)
 app.include_router(sessions.router)
 app.include_router(events.router)
 app.include_router(explore.router)

@@ -6,8 +6,8 @@ token 缺失/无效/过期/用户不存在/已停用 → 401（存在性不泄�
 REST/SSE 同一凭据（Cookie，方案 A）。
 
 can_read_session（§8 第三层，S2-2 落地）：会话读权限的资源级判定函数
-（E-2 风格），失败由调用方映射 404（存在性隐藏）。require_role（第二层）
-按 §8 蓝图留给 S3 教师端。
+（E-2 风格），失败由调用方映射 404（存在性隐藏）。require_role（第二层，
+S3-1 落地）：端点声明最低角色，不符 → 403（见函数 docstring）。
 """
 from __future__ import annotations
 
@@ -53,6 +53,35 @@ def list_user_roles(db: Session, user_id: int) -> list[str]:
     """
     rows = db.scalars(select(UserRole.role).where(UserRole.user_id == user_id)).all()
     return sorted(rows) if rows else ["student"]
+
+
+def require_role(*roles: str):
+    """权限矩阵第二层（permissions §8）：要求当前用户至少拥有指定角色之一。
+
+    用法（端点声明最低角色，**不在 handler 内联写 role 判断**）：
+        def endpoint(user: User = Depends(require_role("admin"))): ...
+
+    不符 → 403（resource 存在性已知，属 permissions §3 的"动作不符"；
+    不是 404 存在性隐藏）。无角色行的账号按 student 兜底（list_user_roles），
+    故 require_role("admin") 对普通注册账号稳定返回 403。
+
+    资源级判定（第三层 can_read_session 等）仍由各端点 handler 显式调用——
+    第二层只挡"全局角色门槛"，不挡"归属"。
+    """
+
+    def _require(
+        db: Session = Depends(get_db),
+        user: User = Depends(get_current_user),
+    ) -> User:
+        owned = set(list_user_roles(db, user.id))
+        if not owned & set(roles):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"权限不足：需要 {'/'.join(roles)} 角色",
+            )
+        return user
+
+    return _require
 
 
 def can_read_session(db: Session, user: User, session: TrainingSession) -> bool:

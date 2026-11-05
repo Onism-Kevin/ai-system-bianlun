@@ -1,7 +1,8 @@
 """S1-1：应用配置（settings）。
 
 从 backend/.env 读取五键（MODEL_BASE_URL / MODEL_API_KEY / MODEL_DEFAULT /
-DATABASE_URL / JWT_SECRET），并提供 dev/test/demo 三环境的数据库切换。
+DATABASE_URL / JWT_SECRET），并提供 dev/test/demo 三环境的数据库切换；
+S3-1 追加可选的 ADMIN_USERNAME（首个管理员账号种子，裁定 2）。
 
 约定：
 - 真实密钥只存在于 backend/.env（已 gitignore），本模块不打印、不回显任何密钥；
@@ -50,6 +51,9 @@ class Settings(BaseSettings):
     jwt_secret: SecretStr
     # JWT 有效期（天）。S2-1 定 7 天（用户任务书）；可用环境变量 JWT_EXPIRE_DAYS 覆盖。
     jwt_expire_days: int = 7
+    # S3-1 裁定 2：ADMIN_USERNAME 指定首个管理员账号——该用户名注册时自动授予
+    # admin 角色。留空（默认）= 不启用种子；生产/部署用 .env 配置，不写代码。
+    admin_username: str = ""
     app_env: EnvName = "dev"
 
     def sqlalchemy_url(self):

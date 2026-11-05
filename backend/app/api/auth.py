@@ -55,16 +55,29 @@ def register(
     """注册：建 users 行 + 默认授予 student 角色（permissions §2）。
 
     409 重名先查一遍（语义清晰），并发撞 UNIQUE(username) 再兜底一次。
+
+    角色授予顺序（S3-1 裁定 2，不可调换）：
+      ① 重名检查 → 409；
+      ② 建 users 行 + flush 取 id；
+      ③ 授予 student（注册默认）；
+      ④ 若 username == ADMIN_USERNAME → 追加授予 admin（首个管理员种子）；
+      ⑤ commit（角色行与用户行同事务，要么都成功要么都回滚）。
+    顺序颠倒会导致"重名时也授予"或"用户创建失败但角色已授"。
     """
     existing = db.scalar(select(User.id).where(User.username == body.username))
     if existing is not None:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT, detail="用户名已被占用"
         )
+    settings = get_settings()
     user = User(username=body.username, password_hash=hash_password(body.password))
     db.add(user)
     db.flush()  # 先拿 user.id，再插角色行
     db.add(UserRole(user_id=user.id, role="student"))
+    # S3-1 裁定 2（G4）：ADMIN_USERNAME 环境变量指定首个管理员账号，
+    # 该用户名注册时自动授予 admin（不依赖"第一个注册"或手动 SQL）。
+    if settings.admin_username and user.username == settings.admin_username:
+        db.add(UserRole(user_id=user.id, role="admin"))
     try:
         db.commit()
     except IntegrityError:
@@ -73,7 +86,7 @@ def register(
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT, detail="用户名已被占用"
         )
-    return RegisterResponse(id=user.id, username=user.username, roles=["student"])
+    return RegisterResponse(id=user.id, username=user.username, roles=list_user_roles(db, user.id))
 
 
 @router.post("/login", response_model=LoginResponse)
