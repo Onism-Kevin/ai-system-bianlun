@@ -99,7 +99,24 @@
 | S3-2 | 课程创建 + 成员 API（6 端点） | 31（新增） | d6e695f（+ 99e939c 排序/422 修复） |
 | S3-3 | 任务创建 + 加入码 + join API（5 端点） | 31（新增） | 3919b94 |
 | S3-4 | 提交 API（3 端点，E-5 upsert + 旧会话置 private） | 18（新增） | 3f731cd |
-| S3-5 | 班级汇总：feedback 两端点 + summary（3 端点） | 19（新增） | 待 commit |
+| S3-5 | 班级汇总：feedback 两端点 + summary（3 端点） | 19（新增） | df77fa0 |
+| S3-6 | 教师情境演练（teacher_persona + drill 模式）+ audit 两条 | 13（新增） | 049415f |
+
+**S3 后端 6/6 收口**：S3-1~S3-6 全部完成（S3-6 是最后一个后端任务）。
+
+**audit 两条落地**（S3-6，用户 2026-11-07 拍板"现在补"）：
+- `auth.py:login` → `AuditEvent(action="user.login")`（actor=target=本人）
+- `user_roles.py:grant_role` → `AuditEvent(action="role.grant")`，
+  `detail={"role", "target_user_id"}`（谁给谁授予了什么角色）
+- **旁路记录**：audit 写入失败不影响主流程（try/except + rollback + warning，
+  登录仍 200、授予仍 201）；register 不写 audit；409/401 失败不写 audit。
+
+### S3 收口汇报格式建议（用户 2026-11-07）
+
+- **"欠账已清"不等于"不用再提"**。S3-4/S3-5 汇报若加一行"上轮 3 个欠账已清
+  （排序/422/E-21/26）"，就不会两轮追问同一个问题。
+- **每轮汇报固定加一行"上轮欠账状态"**（已清 / 仍待 / 新增），避免"追问
+  已答但未复述"的重复劳动。
 
 **S3 数字口径（2026-11-07 精确核算，修正此前的 21）**：
 - 契约端点 51 = **S2 已实现 28** + **S3 全部 18** + **S4/S5 未实现 5**

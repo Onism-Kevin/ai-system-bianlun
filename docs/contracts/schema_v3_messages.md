@@ -89,6 +89,15 @@
 | `ip` VARCHAR(45) NULL | **用户拍板加**（errata E-5） | IPv6 上限 45 位；登录留痕常用 |
 | `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP | 全局约定 | 建 `(created_at)` 索引供按时间审计查询 |
 
+> **审计动作清单（S3-6 定稿，2026-11-07）**：MVP 只写两条——
+> - `user.login`（`auth.py:login`，actor=target=登录者）；
+> - `role.grant`（`user_roles.py:grant_role`，
+>   `detail={"role", "target_user_id"}`，actor=admin、target=被授者）。
+> - **旁路记录**：audit 写入失败不影响主流程（登录仍 200、授予仍 201），
+>   register / 401 / 409 不写 audit。
+> - 其余动作（`task.create` / `submission.view` 等）**留 S5**，届时按本表
+>   `action` 列的命名规范补。
+
 ## 范围外
 
 - tasks / task_submissions / sessions → `schema_v2_tasks.md`（S1-3 定稿）
