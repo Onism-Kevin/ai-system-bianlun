@@ -19,7 +19,14 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user, list_user_roles, require_role
+from app.api.deps import (
+    can_read_course,
+    get_current_user,
+    has_teacher_role,
+    is_course_owner,
+    is_course_teacher,
+    require_role,
+)
 from app.core.codes import CODE_MAX_ATTEMPTS, generate_code, is_duplicate_key
 from app.core.database import get_db
 from app.models.course import Course, CourseMember
@@ -44,41 +51,9 @@ _FORBIDDEN = HTTPException(
 )
 
 
-# ---- 资源级判定 helper（E-16 分层的第一层）----
-
-
-def _has_teacher_role(db: Session, user: User) -> bool:
-    """全局 teacher 角色（permissions §4 courses 行的 role 列）。"""
-    return "teacher" in set(list_user_roles(db, user.id))
-
-
-def _is_course_owner(course: Course, user: User) -> bool:
-    """courses.teacher_id = 本人（E-15 同款 owner 优先级：不要求角色行）。"""
-    return course.teacher_id == user.id
-
-
-def _can_read_course(db: Session, user: User, course: Course) -> bool:
-    """课程可读性：本人是教师（teacher_id）或本人在 course_members 中。
-
-    未列出的 角色×资源×动作 组合一律 404（permissions §4 兜底），
-    故非教师且非成员 → False → 404。
-    """
-    if _is_course_owner(course, user):
-        return True
-    return (
-        db.scalar(
-            select(CourseMember.id).where(
-                CourseMember.course_id == course.id,
-                CourseMember.user_id == user.id,
-            )
-        )
-        is not None
-    )
-
-
-def _is_course_teacher(db: Session, user: User, course: Course) -> bool:
-    """课程教师（写动作门槛）：teacher_id = 本人 **且** 具 teacher 角色。"""
-    return _is_course_owner(course, user) and _has_teacher_role(db, user)
+# ---- 资源级判定 helper ----
+# 课程/任务可读性与教师判定统一在 app.api.deps（permissions §8 第三层），
+# 与 can_read_session 同层，S3-3 的 tasks 端点复用同一套判定。
 
 
 # ---- POST /api/courses ----
@@ -136,7 +111,7 @@ def list_courses(
     """
     result: list[Course] = []
     seen: set[int] = set()
-    if _has_teacher_role(db, me):
+    if has_teacher_role(db, me):
         for c in db.scalars(
             select(Course).where(Course.teacher_id == me.id).order_by(Course.id)
         ).all():
@@ -201,9 +176,9 @@ def get_course(
     FastAPI 对无 response_model 的返回值直接 jsonable_encoder，不补字段。
     """
     course = db.get(Course, course_id)
-    if course is None or not _can_read_course(db, me, course):
+    if course is None or not can_read_course(db, me, course):
         raise _NOT_FOUND
-    if _is_course_owner(course, me):
+    if is_course_owner(course, me):
         return CourseWithCodeOut.model_validate(course)
     return CourseOut.model_validate(course)
 
@@ -220,12 +195,12 @@ def update_course(
 ) -> CourseWithCodeOut:
     """改课（课程教师；含归档 is_archived，MVP 无删除端点）。
 
-    E-16 分层：① `_can_read_course` 不过 → 404；② 非课程教师 → 403。
+    E-16 分层：① `can_read_course` 不过 → 404；② 非课程教师 → 403。
     """
     course = db.get(Course, course_id)
-    if course is None or not _can_read_course(db, me, course):
+    if course is None or not can_read_course(db, me, course):
         raise _NOT_FOUND
-    if not _is_course_teacher(db, me, course):
+    if not is_course_teacher(db, me, course):
         raise _FORBIDDEN
     for field, value in body.model_dump(exclude_unset=True).items():
         setattr(course, field, value)
@@ -248,9 +223,9 @@ def list_course_members(
     E-16 分层：① 可读性不过 → 404；② 非课程教师 → 403。
     """
     course = db.get(Course, course_id)
-    if course is None or not _can_read_course(db, me, course):
+    if course is None or not can_read_course(db, me, course):
         raise _NOT_FOUND
-    if not _is_course_teacher(db, me, course):
+    if not is_course_teacher(db, me, course):
         raise _FORBIDDEN
     rows = db.execute(
         select(CourseMember.user_id, User.username, CourseMember.joined_at)

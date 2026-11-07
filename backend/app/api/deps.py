@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.security import InvalidToken, decode_access_token
-from app.models.course import Course
+from app.models.course import Course, CourseMember
 from app.models.session import TrainingSession
 from app.models.task import Task
 from app.models.user import User, UserRole
@@ -82,6 +82,55 @@ def require_role(*roles: str):
         return user
 
     return _require
+
+
+# ---- 课程/任务域资源级判定（permissions §8 第三层；S3-2 落地，S3-3 复用）----
+
+
+def has_teacher_role(db: Session, user: User) -> bool:
+    """全局 teacher 角色（permissions §4 courses/tasks 行的 role 列）。"""
+    return "teacher" in set(list_user_roles(db, user.id))
+
+
+def is_course_owner(course: Course, user: User) -> bool:
+    """courses.teacher_id = 本人（E-15 同款 owner 优先级：不要求角色行）。"""
+    return course.teacher_id == user.id
+
+
+def can_read_course(db: Session, user: User, course: Course) -> bool:
+    """课程可读性：本人是教师（teacher_id）或本人在 course_members 中。
+
+    未列出的 角色×资源×动作 组合一律 404（permissions §4 兜底），
+    故非教师且非成员 → False → 404。
+    """
+    if is_course_owner(course, user):
+        return True
+    return (
+        db.scalar(
+            select(CourseMember.id).where(
+                CourseMember.course_id == course.id,
+                CourseMember.user_id == user.id,
+            )
+        )
+        is not None
+    )
+
+
+def is_course_teacher(db: Session, user: User, course: Course) -> bool:
+    """课程教师（写动作门槛）：teacher_id = 本人 **且** 具 teacher 角色。"""
+    return is_course_owner(course, user) and has_teacher_role(db, user)
+
+
+def can_read_task(db: Session, user: User, task) -> bool:
+    """任务可读性 = 所属课程可读（§9 Q1：课程成员为主路径，join_code 仅入组校验）。"""
+    course = db.get(Course, task.course_id)
+    return course is not None and can_read_course(db, user, course)
+
+
+def is_task_teacher(db: Session, user: User, task) -> bool:
+    """任务所属课程的教师（写动作门槛）。"""
+    course = db.get(Course, task.course_id)
+    return course is not None and is_course_teacher(db, user, course)
 
 
 def can_read_session(db: Session, user: User, session: TrainingSession) -> bool:
