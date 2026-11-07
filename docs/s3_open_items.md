@@ -116,10 +116,25 @@
   同名，且 `tests/api/`、`tests/models/` **均无 `__init__.py`** → pytest 按基名
   导入，报 `import file mismatch`。
   - **已修**：API 层测试改名为 `tests/api/test_feedback_api.py`。
-  - **根因待办**：仓库约定是"测试文件基名全局唯一"，新增测试文件前必须先
-    `find tests -name 'test_*.py' | xargs -n1 basename | sort | uniq -d` 查重。
-    若未来测试文件增多，建议给 `tests/api/`、`tests/models/` 补 `__init__.py`
-    改为包导入（**改仓库约定，需用户确认**，S5 前处理）。
+  - **根因待办（用户 2026-11-07 裁定：不补 `__init__.py`）**：pytest 的
+    rootdir 模式本就要求"测试文件基名唯一"，改名是标准做法。**新增测试文件前
+    必须先查重**：
+    ```
+    find tests -name 'test_*.py' -not -path '*__pycache__*' \
+      | xargs -n1 basename | sort | uniq -d
+    ```
+    （空输出 = 无冲突）
+
+### S3-2 测试清单漏列（数字链核对结论，2026-11-07）
+
+- S3-2 首次汇报的清单 = **29** 个（建课 7 + 列表 4 + 详情 4 + PATCH 5 +
+  members 4 + join 5）。
+- S3-2 fix commit（`99e939c`）补了 2 个 is_archived 测试，test_courses.py
+  变为 **31** 个，但 S3-2 的汇报清单**未回填**。
+- 全量链：`387 + 29 = 416`（S3-2 首次）→ `387 + 31 = 418`（S3-2 fix）
+  → `486 = 387 + 31 + 31 + 18 + 19`（S3-5）✅
+- **教训**：补测试后必须回填该任务的清单数，否则后续汇报的"已实现 X"会
+  与全量 pytest 对不上（本次"29 vs 31""416 vs 418"都是这个原因）。
 
 ---
 
