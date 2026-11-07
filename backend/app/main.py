@@ -24,6 +24,7 @@ from app.api import (
     reports,
     revisions,
     sessions,
+    submissions,
     tasks,
     user_roles,
 )
@@ -43,6 +44,7 @@ app.include_router(auth.router)
 app.include_router(user_roles.router)
 app.include_router(courses.router)
 app.include_router(tasks.router)
+app.include_router(submissions.router)
 app.include_router(sessions.router)
 app.include_router(events.router)
 app.include_router(explore.router)
