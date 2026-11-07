@@ -13,6 +13,8 @@
 """
 from __future__ import annotations
 
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -22,6 +24,7 @@ from app.api.deps import get_current_user, list_user_roles
 from app.core.config import get_settings
 from app.core.database import get_db
 from app.core.security import create_access_token, hash_password, verify_password
+from app.models.audit import AuditEvent
 from app.models.user import User, UserRole
 from app.schemas.auth import (
     AuthUser,
@@ -36,6 +39,8 @@ router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 # Cookie 名（permissions §6.3）：REST 与 SSE（S2-4 起）同一凭据
 COOKIE_NAME = "access_token"
+
+logger = logging.getLogger(__name__)
 
 
 def _to_auth_user(user: User) -> AuthUser:
@@ -117,6 +122,21 @@ def login(
         path="/",
         max_age=settings.jwt_expire_days * 24 * 60 * 60,
     )
+    # S3-6：audit 旁路记录（user.login）。audit 失败**不影响登录**（用户
+    # 2026-11-07 拍板：旁路记录，不是主流程的一部分）。
+    try:
+        db.add(
+            AuditEvent(
+                actor_id=user.id,
+                action="user.login",
+                target_type="user",
+                target_id=user.id,
+            )
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+        logger.warning("audit 写入失败，不影响登录", exc_info=True)
     return LoginResponse(user=_to_auth_user(user))
 
 

@@ -15,6 +15,7 @@ teacher/admin；teacher/student 只读本人角色行，见 §4 :49-50）。
 """
 from __future__ import annotations
 
+import logging
 from datetime import datetime
 from typing import Literal
 
@@ -24,9 +25,12 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db, require_role
+from app.models.audit import AuditEvent
 from app.models.user import User, UserRole
 
 router = APIRouter(prefix="/api/user_roles", tags=["user_roles"])
+
+logger = logging.getLogger(__name__)
 
 
 class RoleGrantRequest(BaseModel):
@@ -78,6 +82,22 @@ def grant_role(
             status_code=status.HTTP_409_CONFLICT, detail="该用户已拥有此角色"
         )
     db.refresh(row)  # 取服务端生成的 created_at
+    # S3-6：audit 旁路记录（role.grant）。detail 记"谁给谁授予了什么角色"——
+    # 审计的核心信息。audit 失败**不影响授予**（用户 2026-11-07 拍板）。
+    try:
+        db.add(
+            AuditEvent(
+                actor_id=actor.id,
+                action="role.grant",
+                target_type="user",
+                target_id=body.user_id,
+                detail={"role": body.role, "target_user_id": body.user_id},
+            )
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+        logger.warning("audit 写入失败，不影响角色授予", exc_info=True)
     return RoleGrantResponse(
         user_id=body.user_id, role=body.role, granted_at=row.created_at
     )
