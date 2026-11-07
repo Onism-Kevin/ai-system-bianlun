@@ -61,13 +61,20 @@
 | `id` BIGINT PK AUTO_INCREMENT | 表骨架 | |
 | `task_id` BIGINT NOT NULL, FK→`tasks.id` ON DELETE CASCADE | 行业惯例（反馈以任务为对象） | |
 | `student_id` BIGINT NOT NULL, FK→`users.id` ON DELETE CASCADE | 行业惯例 | |
-| `scores` JSON NOT NULL | 行业惯例 | 分项评分，具体维度 S3 实现定，JSON 免锁死 |
+| `scores` JSON NOT NULL | 行业惯例（维度 S3-5 定稿） | 学生对任务的**体验评分**三维度
+  `{"difficulty": 1-5, "coach_helpful": 1-5, "time_reasonable": 1-5}`（用户
+  2026-11-07 S3-5 拍板）。JSON 免锁死维度增删。**语义区分**：与
+  rubric.json 的四维度不同——rubric 是**学生论证质量评分**（S1-9/S2-10），
+  本表是**学生对任务的体验评分**，两者不可混用 |
 | `comment` TEXT NULL | 行业惯例 | 开放意见 |
 | `submitted_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP | 行业惯例 | |
 | `UNIQUE(task_id, student_id)` | 行业惯例 | 一生一任务一份反馈 |
 
 > ⚠️ 本表在方案与任务卡中只出现表名（S3-5"反馈表汇总"），无字段级描述，
-> 整表为行业惯例起草。若对反馈内容有具体设计（如问卷题目固定），S3 实现前提出。
+> 整表为行业惯例起草。**维度已于 2026-11-07（S3-5 开工前）定稿**：见上表
+> `scores` 行——三维度 {difficulty, coach_helpful, time_reasonable}，
+> 语义为"学生对任务的体验评分"，与 rubric 四维度（学生论证质量评分）区分。
+> 若后续要改问卷题目（增删维度），JSON 免锁死，无需 migration。
 
 ## 表 5：`audit_events`（审计留痕，S3-1/S3-6）
 

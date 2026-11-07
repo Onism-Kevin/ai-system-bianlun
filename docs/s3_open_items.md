@@ -99,6 +99,7 @@
 | S3-2 | 课程创建 + 成员 API（6 端点） | 31（新增） | d6e695f（+ 99e939c 排序/422 修复） |
 | S3-3 | 任务创建 + 加入码 + join API（5 端点） | 31（新增） | 3919b94 |
 | S3-4 | 提交 API（3 端点，E-5 upsert + 旧会话置 private） | 18（新增） | 3f731cd |
+| S3-5 | 班级汇总：feedback 两端点 + summary（3 端点） | 19（新增） | 待 commit |
 
 **S3 数字口径（2026-11-07 精确核算，修正此前的 21）**：
 - 契约端点 51 = **S2 已实现 28** + **S3 全部 18** + **S4/S5 未实现 5**
@@ -106,8 +107,19 @@
 - ⚠️ 此前口径"51 − 28 − 2 = 21"**少算了 3 个 graph 端点**，正确为
   **51 − 28 − 5 = 18**。
 - S3 的 18 = user_roles 1 + courses 6 + tasks 5 + submissions 3 + feedback 2 + summary 1。
-- 当前已实现 43 = 28（S2）+ 15（S3-1/2/3/4）；**S3 剩余 3**（feedback 2 + summary 1）。
+- **S3-5 收尾后已实现 46 = 28（S2）+ 18（S3 全部）**；**S3 剩余 0**。
 - S3 收口时单独记"已实现 X / 未实现 Y"（见 §3），不得与 §5 的 51 混写。
+
+### S3-5 新增的待办（pytest 收集问题）
+
+- **测试文件基名冲突**：`tests/api/test_feedback.py` 与 `tests/models/test_feedback.py`
+  同名，且 `tests/api/`、`tests/models/` **均无 `__init__.py`** → pytest 按基名
+  导入，报 `import file mismatch`。
+  - **已修**：API 层测试改名为 `tests/api/test_feedback_api.py`。
+  - **根因待办**：仓库约定是"测试文件基名全局唯一"，新增测试文件前必须先
+    `find tests -name 'test_*.py' | xargs -n1 basename | sort | uniq -d` 查重。
+    若未来测试文件增多，建议给 `tests/api/`、`tests/models/` 补 `__init__.py`
+    改为包导入（**改仓库约定，需用户确认**，S5 前处理）。
 
 ---
 

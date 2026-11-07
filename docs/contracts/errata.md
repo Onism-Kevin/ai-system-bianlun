@@ -371,3 +371,19 @@
 - **理由**：不写本勘误，S3/S4/S5 读 sse_events.md 会误以为进度推送已落地，
   重复实现或误判。
 - **日期/拍板人**：用户，2026-11-01（S2-F7 设计纲要审阅，裁定 F5）。
+
+## E-29 S3-5 的 top_pending_verification 在 MVP 返回空数组
+
+- **原文问题**：api.md:70 `GET /api/courses/{course_id}/summary` 出参
+  `top_pending_verification:[{text, count}]`（常见待核实项 Top5），但
+  `reports` 表**无结构化的"待核实项"字段**，`summary_text` 是 markdown
+  拼接，无法可靠提取"待核实项"。
+- **裁定（用户，2026-11-07，S3-5 开工前）**：
+  - MVP 阶段 `top_pending_verification` 返回**空数组 `[]`**；
+  - 前端显示"暂无数据"（S3-F3 消费）；
+  - S5 若需要真实数据：S2-10 报告生成时提取待核实项，存入 `reports`
+    新增列，S3-5 读该列聚合 Top5。
+- **理由**：不写本勘误，S3/S4/S5 会误以为 Top5 已实现或尝试从
+  `summary_text` 正则提取（脆弱，否决）。
+- **范围**：仅 S3-5 summary 端点的 `top_pending_verification` 字段；
+  `submitted_count` / `total_students` 正常实算。
