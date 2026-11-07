@@ -52,6 +52,32 @@
 
 ---
 
+## 2.5 S3-2 审阅后的修正与待办（2026-11-07）
+
+### ✅ 已修
+
+| # | 项 | 修法 | 测试证据 |
+|---|---|---|---|
+| S3-2a | `GET /api/courses` union 合并后无序 | `result.sort(key=lambda c: c.id)`（修法 A） | `test_list_courses_dual_role_union` 改为断言 `ids == sorted(ids)`，并构造"加入课 id 小 / 教课 id 大"使不排序必失败 |
+| S3-2b | `is_archived` 422 测试缺失 | 补 `test_patch_course_is_archived_non_bool_returns_422`（用 `"maybe"`） | ✅ |
+
+### ⚠️ 行为修正（重要）
+
+- **Pydantic v2 会把字符串 `'true'`/`'1'`/`'yes'`/`'no'`/`'0'` 强制转换为 bool**
+  （实测 `pydantic.BaseModel(is_archived='true').is_archived == True`）。
+  因此"前端传 `'true'` → 422"**不成立**；只有真正非 bool 值
+  （`'maybe'`、`[]`）才 422。
+  已补 `test_patch_course_is_archived_string_true_coerced` 记录此行为。
+
+### ⏳ 待办
+
+| # | 项 | 级别 | 归属 |
+|---|---|---|---|
+| S3-2c | `POST /api/courses` 的 409（加入码 5 次重试仍冲突）分支无测试 | 次要 | S5 压测时补（32^8 空间，极端场景） |
+| S3-2d | **产品决策**：列表是否带 invite_code | 待拍板 | 用户 2026-11-07 倾向 A（一律不带）；当前实现 = A |
+
+---
+
 ## 3. S3 收口数字口径（防混淆，用户 2026-11-05 强调）
 
 - api.md §5 的 **51 = 契约端点总数**（含 S4 图谱、S5 等未实现项），
@@ -70,7 +96,7 @@
 |---|---|---|---|
 | S3-0 | 契约补登（user_roles 行 + 422 + list 4 行 + E-4 口径） | — | ebfc47f |
 | S3-1 | 角色管理 API + ADMIN_USERNAME 种子 | 11（新增） | 8238833 |
-| S3-2 | 课程创建 + 成员 API（6 端点） | 29（新增） | 待 commit |
+| S3-2 | 课程创建 + 成员 API（6 端点） | 31（新增） | 待 commit |
 
 ---
 

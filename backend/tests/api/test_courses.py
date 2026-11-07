@@ -160,15 +160,21 @@ def test_list_courses_student_only_joined(
 def test_list_courses_dual_role_union(
     client: TestClient, teacher: User, session: Session
 ) -> None:
+    """dual-role：教的 + 加入的 union，且合并后按 id 升序。
+
+    顺序断言的关键：先建"加入的课"（id 小），再建"教的课"（id 大）。
+    不加排序时，合并顺序是 [taught(大), joined(小)] → 降序 → 断言失败。
+    """
     dual = _mk_user(session, "dual1", roles=("student", "teacher"))
-    taught = _mk_course(session, dual, "教的课")
-    joined_by = _mk_course(session, teacher, "加入的课")
+    joined_by = _mk_course(session, teacher, "加入的课")  # 小 id
     _join_db(session, joined_by, dual)
+    taught = _mk_course(session, dual, "教的课")  # 大 id
 
     r = client.get("/api/courses", cookies=_cookies(dual))
     assert r.status_code == 200
     ids = [c["id"] for c in r.json()]
-    assert taught.id in ids and joined_by.id in ids
+    assert set(ids) == {taught.id, joined_by.id}
+    assert ids == sorted(ids), "union 合并后必须按 id 升序"
 
 
 def test_list_courses_never_exposes_invite_code(
@@ -280,6 +286,42 @@ def test_patch_course_name_too_long_returns_422(
         f"/api/courses/{course.id}", json={"name": "x" * 101}, cookies=_cookies(teacher)
     )
     assert r.status_code == 422
+
+
+def test_patch_course_is_archived_non_bool_returns_422(
+    client: TestClient, teacher: User, session: Session
+) -> None:
+    """is_archived 非 bool → 422（DB 列 TINYINT(1)）。
+
+    注意：Pydantic v2 会**强制转换** 'true'/'1'/'yes'/'no'/'0' → bool
+    （实测 `is_archived='true'` 得到 True，不 422）；故必须用真正非 bool
+    的值（如 'maybe'）才能触发 422。
+    """
+    course = _mk_course(session, teacher, "归档类型课")
+    r = client.patch(
+        f"/api/courses/{course.id}",
+        json={"is_archived": "maybe"},
+        cookies=_cookies(teacher),
+    )
+    assert r.status_code == 422
+
+
+def test_patch_course_is_archived_string_true_coerced(
+    client: TestClient, teacher: User, session: Session
+) -> None:
+    """记录 Pydantic v2 实测行为：字符串 'true' 被强制转换为 bool=True。
+
+    HTML 表单提交的都是字符串，此转换对前端友好；若将来升级 Pydantic
+    收紧 bool 校验，此用例会失败提醒。
+    """
+    course = _mk_course(session, teacher, "字符串归档课")
+    r = client.patch(
+        f"/api/courses/{course.id}",
+        json={"is_archived": "true"},
+        cookies=_cookies(teacher),
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["is_archived"] is True
 
 
 # ---- GET /api/courses/{id}/members ----

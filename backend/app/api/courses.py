@@ -132,6 +132,7 @@ def list_courses(
     """课程列表：teacher→本人教的；student→已加入的（union，去重）。
 
     列表一律不含 invite_code（加入码由单课详情端点提供）。
+    合并后按 id 升序——两个子查询各自有序，合并后未必有序。
     """
     result: list[Course] = []
     seen: set[int] = set()
@@ -151,6 +152,7 @@ def list_courses(
         if c.id not in seen:
             result.append(c)
             seen.add(c.id)
+    result.sort(key=lambda c: c.id)
     return [CourseOut.model_validate(c) for c in result]
 
 
