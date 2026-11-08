@@ -59,7 +59,7 @@
 | `GET` | `/api/courses/{id}/members` | — | 200 `[{user_id, username, joined_at}]`（**仅学生行**，course_members 无教师行） | 401；403/404 非课程教师 | permissions §2/§4 |
 | `POST` | `/api/courses/join` | `{invite_code}` | 200 `{course_id}`（幂等：重复加入仍 200） | 401；**403 错码**² | S3-2；E-12（对称化） |
 | `POST` | `/api/courses/{course_id}/tasks` | `{title, material?, deadline?, need_join_code?}` | 201 `{id, title, join_code, …}`（need_join_code 时服务端生成 String(8)） | 401；403 非课程教师；404；422 入参校验 | S3-3；permissions §4 |
-| `GET` | `/api/courses/{course_id}/tasks` | — | 200 `[{task}]`（教师→本人课程任务；学生→成员课程全部任务） | 401；404 | permissions §4 |
+| `GET` | `/api/courses/{course_id}/tasks` | — | 200 `[{task}]`（教师→本人课程任务，**含 join_code**；学生→成员课程全部任务，**不含 join_code**，键完全缺席） | 401；404 | permissions §4；S3-F2-B（按权限分支序列化） |
 | `GET` | `/api/tasks/{id}` | — | 200 `{task}`（join_code 仅课程教师响应保留） | 401；404 非课程成员 | S3-3；§9 Q1 已决（课程成员为主路径） |
 | `PATCH` | `/api/tasks/{id}` | `{title?, material?, deadline?, is_archived?}` | 200 `{task}`（删除走归档） | 401；403 非课程教师；404 | E-8（CASCADE 连带删除风险，归档替代） |
 | `POST` | `/api/tasks/{id}/join` | `{join_code}` | 200 `{course_id, task_id}`（幂等） | 401；403 错码（S3-3 验收指定；E-12 对称化）；410 已过期 | S3-3 验收 |

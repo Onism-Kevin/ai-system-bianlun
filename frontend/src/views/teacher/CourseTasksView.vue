@@ -139,6 +139,30 @@ function formatDeadline(d: string | null): string {
   if (!d) return '—'
   return d.replace('T', ' ').slice(0, 16)
 }
+
+/** S3-F2 commit B：复制加入码。优先 clipboard API，失败降级为 execCommand。 */
+async function copyJoinCode(code: string) {
+  try {
+    await navigator.clipboard.writeText(code)
+    ElMessage.success('加入码已复制')
+    return
+  } catch {
+    // 降级：临时 textarea + execCommand（部分环境 clipboard API 不可用）
+    const ta = document.createElement('textarea')
+    ta.value = code
+    ta.style.position = 'fixed'
+    ta.style.opacity = '0'
+    document.body.appendChild(ta)
+    ta.select()
+    try {
+      document.execCommand('copy')
+      ElMessage.success('加入码已复制')
+    } catch {
+      ElMessage.warning(`复制失败，请手动复制：${code}`)
+    }
+    document.body.removeChild(ta)
+  }
+}
 </script>
 
 <template>
@@ -180,6 +204,23 @@ function formatDeadline(d: string | null): string {
               <el-tag size="small" :type="row.is_archived ? 'info' : 'success'" effect="plain">
                 {{ row.is_archived ? '已归档' : '活跃' }}
               </el-tag>
+            </template>
+          </el-table-column>
+          <!-- S3-F2 commit B：加入码列（教师视角才有；后端按权限分支序列化） -->
+          <el-table-column label="加入码" width="210">
+            <template #default="{ row }">
+              <template v-if="row.join_code">
+                <span class="join-code">{{ row.join_code }}</span>
+                <el-button
+                  link
+                  type="primary"
+                  size="small"
+                  @click="copyJoinCode(row.join_code as string)"
+                >
+                  复制
+                </el-button>
+              </template>
+              <span v-else class="muted">—</span>
             </template>
           </el-table-column>
           <el-table-column label="操作" width="110">
@@ -280,5 +321,11 @@ function formatDeadline(d: string | null): string {
 .hint {
   margin-top: 4px;
   line-height: 1.4;
+}
+.join-code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13px;
+  letter-spacing: 0.5px;
+  color: var(--el-text-color-primary);
 }
 </style>

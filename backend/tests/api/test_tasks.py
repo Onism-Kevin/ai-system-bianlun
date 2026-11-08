@@ -180,17 +180,22 @@ def test_list_tasks_teacher_view(
     assert r.status_code == 200
     titles = [t["title"] for t in r.json()]
     assert titles == ["任务A", "任务B"]
-    assert all("join_code" not in t for t in r.json())
+    # S3-F2-B：教师视角列表含 join_code 键（无码任务值为 null）
+    assert all("join_code" in t for t in r.json())
 
 
 def test_list_tasks_student_member_view(
     client: TestClient, teacher: User, student: User, course: Course, session: Session
 ) -> None:
     _join_db(session, course, student)
-    _create_task_via_api(client, teacher, course, {"title": "成员可见任务"})
+    _create_task_via_api(
+        client, teacher, course, {"title": "成员可见任务", "need_join_code": True}
+    )
     r = client.get(f"/api/courses/{course.id}/tasks", cookies=_cookies(student))
     assert r.status_code == 200
     assert [t["title"] for t in r.json()] == ["成员可见任务"]
+    # S3-F2-B：学生视角列表**不含** join_code 键（不泄露）
+    assert all("join_code" not in t for t in r.json())
 
 
 def test_list_tasks_non_member_returns_404(
@@ -222,16 +227,26 @@ def test_list_tasks_excludes_archived(
     assert active["id"] in ids and archived["id"] not in ids
 
 
-def test_list_tasks_never_exposes_join_code(
-    client: TestClient, teacher: User, course: Course
+def test_list_tasks_teacher_sees_join_code_value(
+    client: TestClient, teacher: User, student: User, course: Course, session: Session
 ) -> None:
-    """列表一律不含 join_code（与 courses 列表决策一致，用户 2026-11-07 拍板 A）。"""
-    _create_task_via_api(
+    """S3-F2-B：教师列表返回 join_code 实际值；学生列表不返回该键。"""
+    created = _create_task_via_api(
         client, teacher, course, {"title": "带码任务", "need_join_code": True}
     )
+    assert created["join_code"] is not None
+
+    # 教师视角：返回 join_code 实际值
     r = client.get(f"/api/courses/{course.id}/tasks", cookies=_cookies(teacher))
-    for t in r.json():
-        assert "join_code" not in t
+    assert r.status_code == 200
+    row = next(t for t in r.json() if t["id"] == created["id"])
+    assert row["join_code"] == created["join_code"]
+
+    # 学生视角（成员）：不含 join_code 键
+    _join_db(session, course, student)
+    r = client.get(f"/api/courses/{course.id}/tasks", cookies=_cookies(student))
+    assert r.status_code == 200
+    assert all("join_code" not in t for t in r.json())
 
 
 # ---- GET /api/tasks/{id} ----

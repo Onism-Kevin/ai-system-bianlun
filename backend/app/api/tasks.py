@@ -107,15 +107,18 @@ def create_task(
 # ---- GET /api/courses/{course_id}/tasks ----
 
 
-@router.get("/courses/{course_id}/tasks", response_model=list[TaskOut])
+@router.get("/courses/{course_id}/tasks")
 def list_course_tasks(
     course_id: int,
     db: Session = Depends(get_db),
     me: User = Depends(get_current_user),
-) -> list[TaskOut]:
-    """任务列表：教师→本人课程任务；学生→成员课程任务（均不含 join_code）。
+):
+    """任务列表：教师→本人课程任务（含 join_code）；学生→成员课程任务（不含）。
 
     列表排除已归档任务（归档=关闭，教师仍可在详情/patch 中操作）。
+    **按权限分支序列化**（S3-F2 commit B）：不声明 response_model——
+    课程教师返回 `TaskWithCodeOut`（含 join_code），学生返回 `TaskOut`
+    （**无 join_code 字段**，键完全缺席，不泄露）。
     """
     course = db.get(Course, course_id)
     if course is None or not can_read_course(db, me, course):
@@ -125,6 +128,8 @@ def list_course_tasks(
         .where(Task.course_id == course_id, Task.is_archived.is_(False))
         .order_by(Task.id)
     ).all()
+    if is_course_teacher(db, me, course):
+        return [TaskWithCodeOut.model_validate(t) for t in tasks]
     return [TaskOut.model_validate(t) for t in tasks]
 
 
