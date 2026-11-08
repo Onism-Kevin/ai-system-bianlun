@@ -1,7 +1,15 @@
 <script setup lang="ts">
-// S2-F1 骨架：五路由占位（登录/仪表盘/训练/回顾/图谱），业务视图后续任务填充
+import { computed } from 'vue'
+import { useRoute } from 'vue-router'
+// S3-F1 commit A：全局顶部导航栏（裁定 5 纳入 S3-F1）。
+// 登录页不显示导航栏（尚未登录，无角色可分流）。
+import AppHeader from './components/AppHeader.vue'
+
+const route = useRoute()
+const showHeader = computed(() => route.path !== '/login')
 </script>
 
 <template>
+  <AppHeader v-if="showHeader" />
   <router-view />
 </template>

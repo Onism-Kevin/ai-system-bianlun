@@ -10,6 +10,11 @@ const routes = [
   { path: '/graph', name: 'graph', component: () => import('../views/GraphView.vue') },
   // S2-F8：训练历史页（GET /api/history + /api/history/{id}，api.md:40-41）
   { path: '/history', name: 'history', component: () => import('../views/HistoryView.vue') },
+  // S3-F1：教师端路由（裁定 5 纳入全局导航；并列路由，App.vue 提供布局）
+  { path: '/teacher', name: 'teacher-dashboard', component: () => import('../views/teacher/TeacherDashboardView.vue') },
+  { path: '/teacher/courses/:id', name: 'teacher-course', component: () => import('../views/teacher/CourseTasksView.vue') },
+  // 提交查看页属 S3-F3；S3-F1 建占位避免死链
+  { path: '/teacher/courses/:id/tasks/:tid', name: 'teacher-task', component: () => import('../views/teacher/TaskDetailView.vue') },
 ]
 
 const router = createRouter({

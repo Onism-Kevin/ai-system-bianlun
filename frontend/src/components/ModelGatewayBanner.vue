@@ -1,14 +1,13 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { useHealth, type GatewayState } from '../composables/useHealth'
+import { useHealth } from '../composables/useHealth'
 
-// S2-F9：全局健康横幅 + health 徽标（api.md:74）。
-// - 模型网关 down/degraded → 警告条（顶部，自动随轮询更新）；
-// - 页脚 health 徽标：model_gateway + mysql 实时状态（匿名可读，降级也 200）。
-// 集成到 TrainingView / DashboardView / ReviewView；单例 useHealth 保证三页共享
-// 同一份状态与同一条轮询（不重复拉 /api/health）。
-const { loading, unreachable, gatewayState, gatewayAlert, healthBadge, reload, start } =
-  useHealth()
+// S2-F9：模型网关告警横幅（api.md:74）。
+// S3-F1 拆分：health 徽标已抽为 HealthBadge.vue，由 AppHeader 在导航栏渲染；
+// 本组件只保留"模型网关 down/degraded 时显示的告警条"。
+// 单例 useHealth 保证所有挂载点共享同一份状态与同一条轮询。
+// （刷新按钮随徽标移到 HealthBadge，本组件不再需要 loading/reload）
+const { gatewayState, gatewayAlert, start } = useHealth()
 
 start()
 
@@ -23,25 +22,10 @@ const alertDesc = computed(() =>
     ? '模型网关当前不可达，生成类操作可能失败，请稍后重试。'
     : '模型网关响应缓慢（超时），生成可能变慢，请耐心等待。',
 )
-
-function gatewayTagType(
-  s: GatewayState,
-): 'success' | 'warning' | 'danger' | 'info' {
-  if (s === 'ok') return 'success'
-  if (s === 'degraded') return 'warning'
-  if (s === 'down') return 'danger'
-  return 'info'
-}
-
-function mysqlTagType(m: string): 'success' | 'danger' | 'info' {
-  if (m === 'ok') return 'success'
-  if (m === 'down') return 'danger'
-  return 'info'
-}
 </script>
 
 <template>
-  <!-- 模型网关告警横幅（S2-F9）：down/degraded 时显示，随 15s 轮询自动更新 -->
+  <!-- 模型网关告警横幅：down/degraded 时显示，随 15s 轮询自动更新 -->
   <el-alert
     v-if="gatewayAlert"
     :title="alertTitle"
@@ -50,39 +34,10 @@ function mysqlTagType(m: string): 'success' | 'danger' | 'info' {
     show-icon
     class="health-banner"
   />
-
-  <!-- health 徽标：model_gateway + mysql 状态（页脚） -->
-  <div class="health-badge">
-    <span class="badge-label">健康</span>
-    <el-tag size="small" :type="gatewayTagType(healthBadge.gatewayState)" effect="plain">
-      网关 {{ healthBadge.gateway }}
-    </el-tag>
-    <el-tag size="small" :type="mysqlTagType(healthBadge.mysql)" effect="plain">
-      MySQL {{ healthBadge.mysql }}
-    </el-tag>
-    <span v-if="unreachable" class="badge-unreachable">健康检查不可达</span>
-    <el-button link size="small" :loading="loading" @click="reload">刷新</el-button>
-  </div>
 </template>
 
 <style scoped>
 .health-banner {
   margin-bottom: 12px;
-}
-.health-badge {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
-  padding-top: 8px;
-  margin-top: 8px;
-}
-.badge-label {
-  font-weight: 600;
-}
-.badge-unreachable {
-  color: var(--el-color-danger);
 }
 </style>
