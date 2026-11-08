@@ -254,3 +254,35 @@ export interface SubmissionResponse {
   submitted_at: string
   replaced: boolean
 }
+
+// ---------------------------------------------------------------------------
+// S3-F1：courses 类型（api.md:54-59）
+// ---------------------------------------------------------------------------
+
+/** 课程公开出参（学生/教师列表共用；invite_code 仅教师可见，列表不带）。 */
+export interface CourseOut {
+  id: number
+  teacher_id: number
+  name: string
+  description: string | null
+  term: string | null
+  is_archived: boolean
+  created_at: string
+  updated_at: string
+  /** 仅课程教师响应保留（api.md:56）；列表接口不带此字段 */
+  invite_code?: string
+}
+
+export interface CourseCreateBody {
+  name: string
+  description?: string | null
+  term?: string | null
+}
+
+export interface CourseJoinBody {
+  invite_code: string
+}
+
+export interface CourseJoinResponse {
+  course_id: number
+}

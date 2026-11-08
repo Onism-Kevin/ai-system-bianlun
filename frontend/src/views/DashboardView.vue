@@ -8,7 +8,6 @@ import {
   demoError403,
   demoError410,
   fetchStudentCourses,
-  fetchTeacherCourses,
   joinCourse,
   joinTask,
 } from '../api/dashboard'
@@ -18,10 +17,12 @@ import type { HistoryItem } from '../api/types'
 import { describeApiError, isUnauthorized } from '../api/errors'
 import ModelGatewayBanner from '../components/ModelGatewayBanner.vue'
 
-// S2-F3 dashboard：参考 S1-10 原型 docs/prototypes/dashboard.html。
-// - 双角色徽标 + 双角色视角切换（roles 来自 /auth/me，真实数据）
+// S2-F3 dashboard（学生视角）：参考 S1-10 原型 docs/prototypes/dashboard.html。
+// S3-F1 起 DashboardView 为**学生专用**：教师工作区拆到 TeacherDashboardView，
+// 导航栏"工作台"按角色分流（教师 → /teacher）。
 // - 历史列表：真实 GET /api/history（S2-12 已交付，#7 T-6 修复）；
-//   加入课程 / 加入任务仍为假数据（端点属 S3-2/S3-3，api/dashboard.ts）
+// - 我的课程：真实 GET /api/courses（S3-2 已交付，studentCourses）；
+// - 加入课程：真实 POST /api/courses/join（S3-2）；加入任务仍假数据（api/tasks.ts 属 S3-F1 commit C）；
 // - 创建训练会话：真打 POST /api/sessions（S2-3 已交付），成功跳 /training?id=
 // - 错误码演示：403/410 经真 AxiosError 构造，走同一条 describeApiError 路径
 const auth = useAuthStore()
@@ -29,9 +30,6 @@ const router = useRouter()
 
 const history = ref<HistoryItem[]>([])
 const studentCourses = ref<CourseItem[]>([])
-const teacherCourses = ref<CourseItem[]>([])
-// 双角色视角：仅双角色用户显示切换器；单角色默认自身视角
-const activeView = ref<'student' | 'teacher'>('student')
 
 const joinCourseForm = reactive({ code: '' })
 const joinTaskForm = reactive({ code: '', expired: false })
@@ -40,38 +38,26 @@ const createForm = reactive({ topic: '高校应不应该禁止 AI 代写论文',
 const loading = ref(false)
 
 onMounted(async () => {
-  if (auth.user) {
-    syncView()
-    await loadFakeData()
-    return
-  }
-  try {
-    await auth.fetchMe()
-  } catch (err) {
-    if (isUnauthorized(err)) {
-      router.push('/login')
+  if (!auth.user) {
+    try {
+      await auth.fetchMe()
+    } catch (err) {
+      if (isUnauthorized(err)) {
+        router.push('/login')
+        return
+      }
+      ElMessage.error(describeApiError(err))
       return
     }
-    ElMessage.error(describeApiError(err))
-    return
   }
-  syncView()
   await loadFakeData()
 })
 
-function syncView() {
-  const roles = auth.roles
-  activeView.value = roles.includes('teacher') && !roles.includes('student') ? 'teacher' : 'student'
-}
-
-const isDualRole = () => auth.roles.includes('student') && auth.roles.includes('teacher')
-
 async function loadFakeData() {
   // 历史列表接真实 GET /api/history（S2-12 已交付，T-6 修复）；
-  // 课程/加入仍为假数据（S3 端点未交付）。
+  // 我的课程接真实 GET /api/courses（S3-2 已交付）。
   history.value = await listHistory()
   if (auth.roles.includes('student')) studentCourses.value = await fetchStudentCourses()
-  if (auth.roles.includes('teacher')) teacherCourses.value = await fetchTeacherCourses()
 }
 
 function onHistoryRowClick(row: HistoryItem) {
@@ -156,20 +142,13 @@ function roleTagType(role: string): 'primary' | 'warning' | 'info' {
           <span v-if="auth.user">{{ auth.user.display_name || auth.user.username }}</span>
         </span>
       </div>
-      <div v-if="isDualRole()" class="view-switch">
-        <span class="muted">视角：</span>
-        <el-radio-group v-model="activeView" size="small">
-          <el-radio-button value="student">学生</el-radio-button>
-          <el-radio-button value="teacher">教师</el-radio-button>
-        </el-radio-group>
-      </div>
     </div>
 
     <!-- S2-F9：全局健康横幅 + health 徽标 -->
     <ModelGatewayBanner />
 
-    <!-- 学生视角 -->
-    <template v-if="activeView === 'student' && auth.roles.includes('student')">
+    <!-- 学生视角（DashboardView 自 S3-F1 起为学生专用） -->
+    <template v-if="auth.roles.includes('student')">
       <div class="grid">
         <el-card>
           <template #header>
@@ -221,7 +200,7 @@ function roleTagType(role: string): 'primary' | 'warning' | 'info' {
         </el-card>
 
         <el-card>
-          <template #header>我的课程（假数据 · 学生视角，GET /api/courses 属 S3-2）</template>
+          <template #header>我的课程（真实 · GET /api/courses 学生视角）</template>
           <el-table :data="studentCourses" style="width: 100%">
             <el-table-column prop="id" label="id" width="70" />
             <el-table-column prop="name" label="课程" />
@@ -231,34 +210,9 @@ function roleTagType(role: string): 'primary' | 'warning' | 'info' {
       </div>
     </template>
 
-    <!-- 教师视角 -->
-    <template v-if="activeView === 'teacher' && auth.roles.includes('teacher')">
-      <div class="grid">
-        <el-card>
-          <template #header>我的课程（假数据 · 教师视角，GET /api/courses 属 S3-2）</template>
-          <el-table :data="teacherCourses" style="width: 100%">
-            <el-table-column prop="id" label="id" width="70" />
-            <el-table-column prop="name" label="课程" />
-            <el-table-column prop="invite_code" label="invite_code" width="130" />
-          </el-table>
-          <p class="muted">invite_code 仅教师响应保留（api.md:56）。</p>
-        </el-card>
+    <!-- 教师视角已拆出：见 TeacherDashboardView（/teacher）；导航栏"工作台"按角色分流 -->
 
-        <el-card>
-          <template #header>创建课程（假数据 · POST /api/courses 属 S3-2）</template>
-          <el-input placeholder="课程名（S3-2 端点落地后接真调用）" />
-          <el-button disabled>创建课程</el-button>
-          <p class="muted">201 {id, name, invite_code, …}；invite_code 服务端生成。</p>
-        </el-card>
-
-        <el-card>
-          <template #header>快捷入口</template>
-          <p class="muted">任务管理 / 班级汇总属 S3（教师任务页 S3-F3）。</p>
-        </el-card>
-      </div>
-    </template>
-
-    <!-- 错误码演示（两个角色都可见） -->
+    <!-- 错误码演示（学生工作台） -->
     <el-card class="error-demo">
       <template #header>错误码演示（假数据 · 经真 AxiosError 走同一条 describeApiError 路径）</template>
       <el-button :loading="loading" @click="onDemo403">触发 403（加入码错误）</el-button>
