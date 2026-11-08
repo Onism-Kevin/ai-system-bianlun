@@ -110,7 +110,20 @@
 - B `dcf0845`：教师工作区（我的课程 + 建课）+ `DashboardView` 学生专用
 - C `abad95e`：课程/任务列表页（真实数据）+ G8 注释修复
 - **G6a（全局导航）已关闭**；**G8（types.ts 注释）已关闭**。
-- 未做：浏览器验收（由用户做）；`dashboard.ts` 的 joinTask 仍为假数据（教学演示，真实调用需 task_id）。
+- 决策 2 修订（2026-11-08）：导航栏删除"教师端"独立链接（教师专属的"工作台"
+  已指向 `/teacher`，重复；双角色回学生视角用 训练/历史/复盘）。
+
+### S3 收口待办：dashboard.ts 的 joinTask 仍是假数据（用户 2026-11-08 记入）
+
+- **现象**：`frontend/src/api/dashboard.ts` 的 `joinTask` 仍返回假数据
+  （`course_id:101, task_id:201`），未接 `POST /api/tasks/{id}/join`。
+- **为何保留**：S2-F3 的"加入任务"演示表单只有 `join_code`，没有 `task_id`；
+  而真实端点的 `task_id` 是路径参数。且演示要触发 410 需"任务已过期"，
+  假 AxiosError 更适合教学演示。
+- **这不是"偷懒"**：演示场景与真实场景的表单字段不同。
+- **何时接真实调用**：S3-F3 或 S5。届时表单要加 `task_id` 输入框
+  （或从课程任务列表选择），否则无法调真实端点。
+- **风险**：S3 收口时若不记录，会误以为"加入任务功能已实现"。
 
 **audit 两条落地**（S3-6，用户 2026-11-07 拍板"现在补"）：
 - `auth.py:login` → `AuditEvent(action="user.login")`（actor=target=本人）

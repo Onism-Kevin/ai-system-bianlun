@@ -6,13 +6,13 @@ import HealthBadge from './HealthBadge.vue'
 
 // S3-F1 commit A：全局顶部导航栏（裁定 5：全局导航纳入 S3-F1）。
 //
-// 链接显示矩阵（用户 2026-11-08 确认）：
+// 链接显示矩阵（用户 2026-11-08 确认，2026-11-08 二次修订）：
 //   工作台  —— 始终显示，按角色分流（教师 → /teacher，学生 → /dashboard）
 //   训练/历史/复盘 —— 只对学生显示（教师的"训练"是 S3-6 drill，S3-F4 才加入口）
-//   教师端  —— 只对教师显示
 //
-// 说明：教师专属用户的"工作台"与"教师端"都指向 /teacher（用户矩阵的字面要求）；
-// 双角色用户的"工作台"按 teacher 优先 → /teacher，教师端同指。
+// 修订（决策 2）：删除"教师端"独立链接——教师专属用户的"工作台"已指向
+// /teacher，再显示一个同指的"教师端"链接是冗余。双角色想回学生视角，
+// 用"训练/历史/复盘"即可。"教师端"作为 /teacher 页面的标题（h1），不是导航链接。
 const auth = useAuthStore()
 const route = useRoute()
 
@@ -33,9 +33,6 @@ const navItems = computed<NavItem[]>(() => {
     items.push({ path: '/training', label: '训练' })
     items.push({ path: '/history', label: '历史' })
     items.push({ path: '/review', label: '复盘' })
-  }
-  if (isTeacher.value) {
-    items.push({ path: '/teacher', label: '教师端' })
   }
   return items
 })
