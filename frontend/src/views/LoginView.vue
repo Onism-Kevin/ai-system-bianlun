@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { reactive, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import type { FormInstance } from 'element-plus'
 import { useAuthStore } from '../stores/auth'
 import { register as registerApi } from '../api/auth'
@@ -12,6 +12,7 @@ import { describeApiError } from '../api/errors'
 // 注册（api.md:25）不签发 Cookie：注册成功后停留在本页提示登录。
 const auth = useAuthStore()
 const router = useRouter()
+const route = useRoute()
 
 const formRef = ref<FormInstance>()
 const form = reactive({ username: '', password: '' })
@@ -47,7 +48,9 @@ function withValidatedForm(action: () => Promise<void>) {
 function onSubmit() {
   withValidatedForm(async () => {
     await auth.login(form.username, form.password)
-    router.push('/dashboard') // 登录成功进 dashboard（S2-F3 起补路由守卫）
+    // S3-F2 commit C：登录成功跳 redirect（若带），否则 /dashboard
+    const redirect = route.query.redirect
+    router.push(typeof redirect === 'string' && redirect ? redirect : '/dashboard')
   })
 }
 

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { AxiosError } from 'axios'
@@ -20,6 +20,9 @@ const courseId = Number(route.params.id)
 const course = ref<CourseOut | null>(null)
 const tasks = ref<TaskOut[]>([])
 const loading = ref(false)
+// S3-F2 commit C：加载错误状态（驱动模板空状态，不用 toast 当唯一反馈）。
+type LoadError = 'unauthorized' | 'forbidden' | 'notFound' | 'network'
+const loadError = ref<LoadError | null>(null)
 // S3-F2 commit A：表单默认收起，点"新建任务"展开；提交成功后收起。
 const showCreateForm = ref(false)
 const createForm = reactive({
@@ -64,13 +67,57 @@ function applyValidationErrors(err: unknown) {
   })
 }
 
+/** S3-F2 commit C：401 → 清本地登录态 + 跳登录（带 redirect）。 */
+function goLogin() {
+  auth.reset()
+  router.push({ path: '/login', query: { redirect: route.fullPath } })
+}
+
+/**
+ * S3-F2 commit C：把加载/提交错误映射到 loadError 分支。
+ * 401 → goLogin；403 → forbidden；404 → notFound；其余 → network + toast。
+ * 返回 true 表示已处理（调用方应 return）。
+ */
+function handleLoadError(err: unknown): boolean {
+  if (isUnauthorized(err)) {
+    goLogin()
+    return true
+  }
+  if (err instanceof AxiosError) {
+    const status = err.response?.status
+    if (status === 403) {
+      loadError.value = 'forbidden'
+      return true
+    }
+    if (status === 404) {
+      loadError.value = 'notFound'
+      return true
+    }
+  }
+  loadError.value = 'network'
+  ElMessage.error('加载失败，请稍后重试')
+  return true
+}
+
+const errorTitle = computed(() => {
+  if (loadError.value === 'forbidden') return '无权访问该课程'
+  if (loadError.value === 'notFound') return '课程不存在'
+  return '加载失败'
+})
+
+const errorDesc = computed(() => {
+  if (loadError.value === 'forbidden') return '你不是该课程教师，无权管理任务'
+  if (loadError.value === 'notFound') return '课程不存在或已删除'
+  return '请检查网络连接后重试'
+})
+
 onMounted(async () => {
   if (!auth.user) {
     try {
       await auth.fetchMe()
     } catch (err) {
       if (isUnauthorized(err)) {
-        router.push('/login')
+        goLogin()
         return
       }
       ElMessage.error(describeApiError(err))
@@ -82,16 +129,21 @@ onMounted(async () => {
 
 async function loadData() {
   loading.value = true
+  loadError.value = null
   try {
-    const [c, t] = await Promise.all([getCourse(courseId), listCourseTasks(courseId)])
-    course.value = c
-    tasks.value = t
-  } catch (err) {
-    if (isUnauthorized(err)) {
-      router.push('/login')
-      return
+    // S3-F2 commit C：**顺序加载**（先课程，再任务列表），不用 Promise.all——
+    // getCourse 403 + listCourseTasks 200 的组合下，Promise.all 会因首个
+    // reject 整体失败，丢掉"课程可读但非教师"这个真实语义。
+    try {
+      course.value = await getCourse(courseId)
+    } catch (err) {
+      if (handleLoadError(err)) return
     }
-    ElMessage.error(describeApiError(err))
+    try {
+      tasks.value = await listCourseTasks(courseId)
+    } catch (err) {
+      if (handleLoadError(err)) return
+    }
   } finally {
     loading.value = false
   }
@@ -117,7 +169,7 @@ async function onCreateTask() {
     await loadData()
   } catch (err) {
     if (isUnauthorized(err)) {
-      router.push('/login')
+      goLogin()
       return
     }
     // S3-F2 commit A：422 逐字段提示（字段级，不用 toast 兜底）
@@ -125,7 +177,8 @@ async function onCreateTask() {
       applyValidationErrors(err)
       return
     }
-    ElMessage.error(describeApiError(err))
+    // S3-F2 commit C：403/404/网络 → loadError 空状态（不用 toast 当唯一反馈）
+    handleLoadError(err)
   } finally {
     loading.value = false
   }
@@ -171,7 +224,8 @@ async function copyJoinCode(code: string) {
       <div>
         <h1>{{ course ? course.name : '课程' }}（id={{ courseId }}）</h1>
         <span class="sub">
-          <template v-if="course">
+          <template v-if="loadError">{{ errorTitle }}</template>
+          <template v-else-if="course">
             学期 {{ course.term || '—' }} ·
             <el-tag size="small" :type="course.is_archived ? 'info' : 'success'" effect="plain">
               {{ course.is_archived ? '已归档' : '活跃' }}
@@ -185,7 +239,28 @@ async function copyJoinCode(code: string) {
 
     <ModelGatewayBanner />
 
-    <div class="grid">
+    <!-- S3-F2 commit C：错误空状态（loadError 驱动，不用 toast 当唯一反馈） -->
+    <el-card v-if="loadError" class="error-state">
+      <el-result
+        :icon="loadError === 'network' ? 'warning' : 'error'"
+        :title="errorTitle"
+        :sub-title="errorDesc"
+      >
+        <template #extra>
+          <el-button @click="router.push('/teacher')">返回课程列表</el-button>
+          <el-button
+            v-if="loadError === 'network'"
+            type="primary"
+            :loading="loading"
+            @click="loadData"
+          >
+            重试
+          </el-button>
+        </template>
+      </el-result>
+    </el-card>
+
+    <div v-else class="grid">
       <el-card>
         <template #header>
           任务列表
@@ -327,5 +402,8 @@ async function copyJoinCode(code: string) {
   font-size: 13px;
   letter-spacing: 0.5px;
   color: var(--el-text-color-primary);
+}
+.error-state {
+  margin-top: 16px;
 }
 </style>
