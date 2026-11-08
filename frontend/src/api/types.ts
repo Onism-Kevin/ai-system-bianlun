@@ -247,7 +247,8 @@ export interface NormalizedReport {
   created_at: string
 }
 
-// 与 backend/app/schemas/task.py 提交出参对应（api.md:65，S3-4 未实现）。
+// 与 backend/app/schemas/submission.py 的 SubmissionPostResponse 对应
+//（api.md:65，S3-4 已实现）。
 export interface SubmissionResponse {
   id: number
   session_id: number
@@ -285,4 +286,45 @@ export interface CourseJoinBody {
 
 export interface CourseJoinResponse {
   course_id: number
+}
+
+// ---------------------------------------------------------------------------
+// S3-F1 commit C：tasks 类型（api.md:60-64）
+// ---------------------------------------------------------------------------
+
+/** 任务公开出参（列表/详情共用；join_code 仅教师可见，列表不带）。 */
+export interface TaskOut {
+  id: number
+  _id: number
+  title: string
+  material: string | null
+  deadline: string | null
+  is_archived: boolean
+  created_at: string
+  updated_at: string
+  /** 仅课程教师响应保留（api.md:62）；列表接口不带此字段 */
+  join_code?: string
+}
+
+export interface TaskCreateBody {
+  title: string
+  material?: string | null
+  deadline?: string | null
+  need_join_code?: boolean
+}
+
+export interface TaskUpdateBody {
+  title?: string
+  material?: string | null
+  deadline?: string | null
+  is_archived?: boolean
+}
+
+export interface TaskJoinBody {
+  join_code: string
+}
+
+export interface TaskJoinResponse {
+  _id: number
+  task_id: number
 }
