@@ -40,9 +40,9 @@
 
 | # | 项 | 级别 | 归属 | 状态 |
 |---|---|---|---|---|
-| G5 | `audit_events` 无写入 helper / 审计动作细则 | 次要 | S3-1（动作清单）+ S5 | ⏳ 待办 1 中一并定义；MVP 只写 `login` + `role.grant` |
-| G8 | `frontend/src/api/types.ts:251` 注释指向不存在的 `backend/app/schemas/task.py` | 次要 | S3-4 | ⏳ 随 S3-4 创建 schema 或改注释 |
-| G6a | 前端无全局导航 | 次要 | S3-F1（裁定 5：纳入 S3-F1） | ⏳ 待 S3-F1 |
+| G5 | `audit_events` 无写入 helper / 审计动作细则 | 次要 | S3-1（动作清单）+ S5 | ✅ **已部分落地**（S3-6）：`auth.py:129`（user.login）+ `user_roles.py:89`（role.grant）；其余动作留 S5 |
+| G8 | `frontend/src/api/types.ts:251` 注释指向不存在的 `backend/app/schemas/task.py` | 次要 | S3-4 | ✅ **已修**（S3-F1-C）：注释改指向 `submission.py` 的 SubmissionPostResponse |
+| G6a | 前端无全局导航 | 次要 | S3-F1（裁定 5：纳入 S3-F1） | ✅ **已修**（S3-F1-A）：`AppHeader.vue` 顶部导航栏 + 按角色分流 |
 | G6b | 前端无自动化测试（Vitest） | 次要 | S4/S5（裁定 5：S3 不引入） | ⏳ 待 S4/S5 |
 | G7 | errata E-4 表数口径（15 = 12 + 3） | 次要 | S3-0 | ✅ 已修（errata.md:48） |
 | G1 | `POST /api/user_roles` 补 api.md 行 | 阻塞 | S3-1 | ✅ 已修（api.md:28） |
@@ -101,8 +101,16 @@
 | S3-4 | 提交 API（3 端点，E-5 upsert + 旧会话置 private） | 18（新增） | 3f731cd |
 | S3-5 | 班级汇总：feedback 两端点 + summary（3 端点） | 19（新增） | df77fa0 |
 | S3-6 | 教师情境演练（teacher_persona + drill 模式）+ audit 两条 | 13（新增） | 049415f |
+| S3-F1 | 教师端前端（全局导航 + 教师工作区 + 课程/任务列表 + G8） | —（无 Vitest；`pnpm build` 零 TS 错误） | e751713 / dcf0845 / abad95e |
 
 **S3 后端 6/6 收口**：S3-1~S3-6 全部完成（S3-6 是最后一个后端任务）。
+
+**S3-F1 前端交付**（3 commit，按设计纲要 `docs/s3_f1_design.md`）：
+- A `e751713`：全局导航栏（`AppHeader` + `HealthBadge`，按角色分流）+ 教师路由骨架
+- B `dcf0845`：教师工作区（我的课程 + 建课）+ `DashboardView` 学生专用
+- C `abad95e`：课程/任务列表页（真实数据）+ G8 注释修复
+- **G6a（全局导航）已关闭**；**G8（types.ts 注释）已关闭**。
+- 未做：浏览器验收（由用户做）；`dashboard.ts` 的 joinTask 仍为假数据（教学演示，真实调用需 task_id）。
 
 **audit 两条落地**（S3-6，用户 2026-11-07 拍板"现在补"）：
 - `auth.py:login` → `AuditEvent(action="user.login")`（actor=target=本人）
