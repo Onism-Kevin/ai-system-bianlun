@@ -86,18 +86,39 @@ export function labelsForMode(mode: string) {
 }
 ```
 
-`MessageStream` 组件接收 labels 作为 prop。
+`MessageStream` 组件接收 `mode` 决定默认标签（`roleLabels.ts` 的 `labelsForMode`）。
 
-## 5. 复用策略：抽共享组件，不复制粘贴
+### 5.1 MessageStream 接口（用户 2026-11-09 约束 1，已收紧）
 
-**抽 `components/MessageStream.vue`**（从 TrainingView 的 v-for 块抽出）：
-- props：`messages`（ChatMessage[]）、`labels`（{user, ai}）
-- 纯渲染：head（角色标签 + agent_role 徽标 + seq + 截断/生成中）、content（+ 流式光标）
-- 保留 TrainingView 的 CSS class（`msg`/`is-user`/`is-ai`/`role-*`/`head`/`content`/`cursor`）
+props：
+- `messages: RenderMessage[]`（纯数据：seq/role/agent_role/content/status/streaming）
+- `mode: 'training' | 'drill'`（决定默认标签）
+- `roleLabel?: (role, agentRole) => string`（可选覆盖）
 
-**TrainingView 重构**：模板里的 v-for 块替换为 `<MessageStream :messages="messages" :labels="{user:'学生',ai:'AI'}" />`。**行为不变**（纯渲染替换）。
+只做纯渲染：head（角色标签 + agent_role 徽标 + seq + 截断/生成中）、
+content（+ 流式光标）。**不做** SSE 状态、发送、控制栏、锚点滚动。
 
-**DrillView 用 `MessageStream` + `useSSE` + `api/sessions`**：
+### 5.2 streaming 字段的关键结论（决定 commit B 重构方式）
+
+**MessageStream 用 `m.streaming` 判断"生成中…"徽标与光标**（不是 `m.status`）。
+
+但 **TrainingView 的 `messages` computed 已携带 `streaming`**：
+- `ChatMessage.streaming: boolean` 是**本地状态**（非后端字段）
+- `loadHistory` 从后端 `MessageOut.status` 映射：`streaming: row.status === 'streaming'`
+- `upsert` 在 SSE 事件中维护（onStart → true，onEnd → false）
+
+**所以 commit B 仍是"v-for 替换"**：`<MessageStream :messages="messages" mode="training" />`
+直接可用——父组件无需额外构造 RenderMessage[]（ChatMessage 结构上满足 RenderMessage，
+`streaming` 已在每条消息上）。
+
+### 5.3 TrainingView 重构（commit B，高风险，单独 commit 便于回退）
+
+- 模板 v-for 块替换为 `<MessageStream :messages="messages" mode="training" />`
+- `mode="training"` 时 roleLabels 默认标签与 TrainingView 既有 `roleLabel` 逐字一致 → **渲染不变**
+- 删除 TrainingView 里重复的 `.msgs/.msg/...` CSS（已移到 MessageStream）
+- 回退路径：`git revert <commit-B-hash>`（**不用 reset**）；commit message 注明回退原因
+
+### 5.4 DrillView 用 MessageStream + useSSE + api/sessions
 - 消息 Map + upsert + maxSeq + loadHistory + connectSse：与 TrainingView 同构，抽到 DrillView 内（或进一步抽 `useChatStream` composable，见下）
 - 控制栏：复用四个 api 函数
 - 错误处理：复用 `useLoadError` + `describeApiError`

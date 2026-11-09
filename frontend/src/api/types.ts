@@ -26,10 +26,12 @@ export interface SessionCreated {
   status: string
 }
 
+/** 训练模式：与 backend MODE_AGENT_ROLES 的 key 一致（窄类型，拼错前端即报错） */
+export type SessionMode = 'debate' | 'coach' | 'rebuttal' | 'con' | 'drill'
+
 export interface SessionCreateBody {
   topic: string
-  /** 训练模式：debate/coach/rebuttal/drill（S3-F4 drill 演练） */
-  mode?: string
+  mode?: SessionMode
   /** 最大轮次（运行参数，不落表，api.md 脚注 1）；默认 1 */
   max_turns?: number
   visibility?: 'private' | 'task'

@@ -19,7 +19,8 @@ export function labelsForMode(mode: string): RoleLabels {
   if (mode === 'drill') {
     return {
       user: '教师',
-      assistant: 'AI',
+      // drill 只应出现 pro；出现其他角色说明后端行为有偏差，用调试文案暴露
+      assistant: '未知角色（应为 pro）',
       byAgent: { pro: '正方学生' },
     }
   }
