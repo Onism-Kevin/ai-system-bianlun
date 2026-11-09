@@ -28,6 +28,10 @@ export interface SessionCreated {
 
 export interface SessionCreateBody {
   topic: string
+  /** 训练模式：debate/coach/rebuttal/drill（S3-F4 drill 演练） */
+  mode?: string
+  /** 最大轮次（运行参数，不落表，api.md 脚注 1）；默认 1 */
+  max_turns?: number
   visibility?: 'private' | 'task'
   task_id?: number | null
 }
