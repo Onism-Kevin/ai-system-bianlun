@@ -1,14 +1,17 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { AxiosError } from 'axios'
 import { useAuthStore } from '../../stores/auth'
 import { getCourse } from '../../api/courses'
 import { listCourseTasks, createTask } from '../../api/tasks'
-import type { CourseOut, TaskOut } from '../../api/types'
+import { getCourseSummary } from '../../api/submissions'
+import type { CourseOut, CourseSummaryOut, TaskOut } from '../../api/types'
 import { describeApiError, isUnauthorized } from '../../api/errors'
 import ModelGatewayBanner from '../../components/ModelGatewayBanner.vue'
+import { useLoadError } from '../../composables/useLoadError'
+import { formatDeadline } from '../../utils/format'
 
 // S3-F1 commit C + S3-F2 commit A：课程详情 + 任务列表 + 新建任务表单。
 // 数据源：GET /api/courses/:id + GET /api/courses/:id/tasks + POST /api/courses/:id/tasks。
@@ -20,9 +23,13 @@ const courseId = Number(route.params.id)
 const course = ref<CourseOut | null>(null)
 const tasks = ref<TaskOut[]>([])
 const loading = ref(false)
-// S3-F2 commit C：加载错误状态（驱动模板空状态，不用 toast 当唯一反馈）。
-type LoadError = 'unauthorized' | 'forbidden' | 'notFound' | 'network'
-const loadError = ref<LoadError | null>(null)
+// S3-F3：错误处理模式抽到 useLoadError（CourseTasksView 与 TaskDetailView 共用）。
+const { loadError, goLogin, handleLoadError, errorTitle, errorDesc } = useLoadError({
+  forbiddenTitle: '无权访问该课程',
+  forbiddenDesc: '你不是该课程教师，无权管理任务',
+  notFoundTitle: '课程不存在',
+  notFoundDesc: '课程不存在或已删除',
+})
 // S3-F2 commit A：表单默认收起，点"新建任务"展开；提交成功后收起。
 const showCreateForm = ref(false)
 const createForm = reactive({
@@ -67,49 +74,9 @@ function applyValidationErrors(err: unknown) {
   })
 }
 
-/** S3-F2 commit C：401 → 清本地登录态 + 跳登录（带 redirect）。 */
-function goLogin() {
-  auth.reset()
-  router.push({ path: '/login', query: { redirect: route.fullPath } })
-}
-
-/**
- * S3-F2 commit C：把加载/提交错误映射到 loadError 分支。
- * 401 → goLogin；403 → forbidden；404 → notFound；其余 → network + toast。
- * 返回 true 表示已处理（调用方应 return）。
- */
-function handleLoadError(err: unknown): boolean {
-  if (isUnauthorized(err)) {
-    goLogin()
-    return true
-  }
-  if (err instanceof AxiosError) {
-    const status = err.response?.status
-    if (status === 403) {
-      loadError.value = 'forbidden'
-      return true
-    }
-    if (status === 404) {
-      loadError.value = 'notFound'
-      return true
-    }
-  }
-  loadError.value = 'network'
-  ElMessage.error('加载失败，请稍后重试')
-  return true
-}
-
-const errorTitle = computed(() => {
-  if (loadError.value === 'forbidden') return '无权访问该课程'
-  if (loadError.value === 'notFound') return '课程不存在'
-  return '加载失败'
-})
-
-const errorDesc = computed(() => {
-  if (loadError.value === 'forbidden') return '你不是该课程教师，无权管理任务'
-  if (loadError.value === 'notFound') return '课程不存在或已删除'
-  return '请检查网络连接后重试'
-})
+/** S3-F3：课程汇总（GET /api/courses/:id/summary）。 */
+const summary = ref<CourseSummaryOut | null>(null)
+const summaryError = ref<string | null>(null)
 
 onMounted(async () => {
   if (!auth.user) {
@@ -146,6 +113,22 @@ async function loadData() {
     }
   } finally {
     loading.value = false
+  }
+  // S3-F3：课程汇总是次级区块——失败不阻塞任务列表（401 除外，跳登录）。
+  await loadSummary()
+}
+
+/** S3-F3：加载课程汇总；失败仅在汇总卡片内联提示，不影响任务列表。 */
+async function loadSummary() {
+  summaryError.value = null
+  try {
+    summary.value = await getCourseSummary(courseId)
+  } catch (err) {
+    if (isUnauthorized(err)) {
+      goLogin()
+      return
+    }
+    summaryError.value = describeApiError(err)
   }
 }
 
@@ -186,11 +169,6 @@ async function onCreateTask() {
 
 function openTask(task: TaskOut) {
   router.push(`/teacher/courses/${courseId}/tasks/${task.id}`)
-}
-
-function formatDeadline(d: string | null): string {
-  if (!d) return '—'
-  return d.replace('T', ' ').slice(0, 16)
 }
 
 /** S3-F2 commit B：复制加入码。优先 clipboard API，失败降级为 execCommand。 */
@@ -238,6 +216,34 @@ async function copyJoinCode(code: string) {
     </div>
 
     <ModelGatewayBanner />
+
+    <!-- S3-F3：课程汇总（次级区块；loadError=null 时显示，失败不阻塞任务列表） -->
+    <el-card v-if="loadError === null" class="summary-card">
+      <template #header>
+        课程汇总
+        <el-button link type="primary" size="small" @click="loadSummary">刷新</el-button>
+      </template>
+      <el-descriptions v-if="summary" :column="3" border>
+        <el-descriptions-item label="提交数">
+          {{ summary.submitted_count }}
+        </el-descriptions-item>
+        <el-descriptions-item label="学生总数">
+          {{ summary.total_students }}
+        </el-descriptions-item>
+        <el-descriptions-item label="待核实 Top5">
+          {{
+            summary.top_pending_verification.length
+              ? summary.top_pending_verification.length + ' 项'
+              : '暂无（E-29）'
+          }}
+        </el-descriptions-item>
+      </el-descriptions>
+      <p v-if="summaryError" class="muted summary-error">{{ summaryError }}</p>
+      <p v-else-if="!summary" class="muted">汇总加载中…</p>
+      <p v-else class="muted">
+        待核实项为空（errata E-29：MVP 不实现，S5 报告生成时提取）。
+      </p>
+    </el-card>
 
     <!-- S3-F2 commit C：错误空状态（loadError 驱动，不用 toast 当唯一反馈） -->
     <el-card v-if="loadError" class="error-state">
@@ -405,5 +411,11 @@ async function copyJoinCode(code: string) {
 }
 .error-state {
   margin-top: 16px;
+}
+.summary-card {
+  margin-bottom: 16px;
+}
+.summary-error {
+  color: var(--el-color-danger);
 }
 </style>

@@ -328,3 +328,37 @@ export interface TaskJoinResponse {
   _id: number
   task_id: number
 }
+
+// ---------------------------------------------------------------------------
+// S3-F3：submissions / summary 类型（api.md:66-70）
+// ---------------------------------------------------------------------------
+
+/** 提交列表项（教师视角）：{student_id, session_id, submitted_at}。 */
+export interface SubmissionListItem {
+  student_id: number
+  session_id: number
+  submitted_at: string
+}
+
+/** 单条提交（submissions/me 出参）。 */
+export interface SubmissionOut {
+  id: number
+  student_id: number
+  task_id: number
+  session_id: number
+  submitted_at: string
+}
+
+/** 待核实项（MVP 为空数组，errata E-29）。 */
+export interface PendingVerificationItem {
+  text: string
+  count: number
+}
+
+/** 课程汇总（api.md:70）。 */
+export interface CourseSummaryOut {
+  submitted_count: number
+  total_students: number
+  /** MVP 返回 []（errata E-29：reports 表无结构化待核实项字段） */
+  top_pending_verification: PendingVerificationItem[]
+}
