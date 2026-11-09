@@ -224,7 +224,7 @@ async function copyJoinCode(code: string) {
         <el-button link type="primary" size="small" @click="loadSummary">刷新</el-button>
       </template>
       <el-descriptions v-if="summary" :column="3" border>
-        <el-descriptions-item label="提交数">
+        <el-descriptions-item label="全部任务提交数">
           {{ summary.submitted_count }}
         </el-descriptions-item>
         <el-descriptions-item label="学生总数">
@@ -241,7 +241,8 @@ async function copyJoinCode(code: string) {
       <p v-if="summaryError" class="muted summary-error">{{ summaryError }}</p>
       <p v-else-if="!summary" class="muted">汇总加载中…</p>
       <p v-else class="muted">
-        待核实项为空（errata E-29：MVP 不实现，S5 报告生成时提取）。
+        课程级汇总：全部任务的提交总数（非单任务）；待核实项为空（errata E-29：MVP
+        不实现，S5 报告生成时提取）。
       </p>
     </el-card>
 

@@ -103,7 +103,8 @@ async function loadSubmissions() {
 }
 
 function openSession(sessionId: number) {
-  router.push(`/training?id=${sessionId}`)
+  // 学生从"提交记录"点进去 → 复盘页（看自己的报告）；教师 → 训练页（继续/管理）
+  router.push(isTeacher.value ? `/training?id=${sessionId}` : `/review?id=${sessionId}`)
 }
 
 function formatSubmittedAt(d: string): string {
