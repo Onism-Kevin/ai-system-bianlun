@@ -133,6 +133,20 @@
   （或从课程任务列表选择），否则无法调真实端点。
 - **风险**：S3 收口时若不记录，会误以为"加入任务功能已实现"。
 
+### S3 收口待办：coach_turn 前端从未消费（用户 2026-11-10 记入）
+
+- **现象**：`POST /api/sessions/{id}/coach_turn`（S2-9 后端实现）前端**从未调用**。
+  `coach_turn` 的结构化输出 `{question, focus, hints, quote_refs}` 无任何视图消费。
+- **根因**：S2 收口的 consistency_check 扫了"端点 vs 实现"（28 端点都实现），
+  但**没扫"端点 vs 前端消费"**——"后端实现了但前端没接"被漏。
+- **混淆点**：S2-F5 的训练页消息流（messages/events）**不含** quote/focus/hints；
+  这些字段属于 coach_turn 的结构化 JSON，与聊天消息（role/agent_role/content/status）
+  是**两个不同的端点**。
+- **S3-F4 的处理**：MessageStream **不加** quote?/focus?/hints?（加了是死代码，
+  前端从不传）。commit B 是纯 v-for 替换，不丢任何渲染。
+- **S4/S5 若要接**：需要新视图 + 新组件（训练页加"教练追问卡片"），
+  届时 MessageStream 可加可选字段。当前不加。
+
 **audit 两条落地**（S3-6，用户 2026-11-07 拍板"现在补"）：
 - `auth.py:login` → `AuditEvent(action="user.login")`（actor=target=本人）
 - `user_roles.py:grant_role` → `AuditEvent(action="role.grant")`，
