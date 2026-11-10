@@ -147,6 +147,18 @@
 - **S4/S5 若要接**：需要新视图 + 新组件（训练页加"教练追问卡片"），
   届时 MessageStream 可加可选字段。当前不加。
 
+### S3 收口待办：DrillView 与 TrainingView 的 SSE 状态层是复制的（用户 2026-11-10 记入）
+
+- **现象**：commit C 的 DrillView 会把 TrainingView 的 SSE 状态层
+  （`messageMap` / `upsert` / `maxSeq` / `loadHistory` / `connectSse`）
+  **内联复制**，不是抽 composable。
+- **为何不抽**：状态层涉及 SSE 生命周期、pause/resume 状态机、多标签页一致性，
+  复杂度远高于渲染层。S3-F4 的 DRY 只做了**渲染层**（MessageStream），
+  没做状态层——这是合理的取舍。
+- **S4/S5 条件**：若出现**第三个** SSE 页面，再抽 `useChatSession`
+  （封装 messageMap + SSE + send + control）。当前两个页面（TrainingView +
+  DrillView）不值得抽象。
+
 **audit 两条落地**（S3-6，用户 2026-11-07 拍板"现在补"）：
 - `auth.py:login` → `AuditEvent(action="user.login")`（actor=target=本人）
 - `user_roles.py:grant_role` → `AuditEvent(action="role.grant")`，
