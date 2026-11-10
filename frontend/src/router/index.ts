@@ -16,6 +16,8 @@ const routes = [
   { path: '/teacher/courses/:id', name: 'teacher-course', component: () => import('../views/teacher/CourseTasksView.vue') },
   // S3-F3：提交查看页（GET /api/tasks/:id/submissions）
   { path: '/teacher/courses/:id/tasks/:tid', name: 'teacher-task', component: () => import('../views/teacher/TaskDetailView.vue') },
+  // S3-F4：教学情境演练页（S3-6 drill 模式，AI 扮正方学生 + 教师练引导）
+  { path: '/teacher/drill', name: 'teacher-drill', component: () => import('../views/teacher/DrillView.vue') },
 ]
 
 const router = createRouter({

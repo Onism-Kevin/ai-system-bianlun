@@ -149,11 +149,13 @@ function openCourse(course: CourseOut) {
 
         <el-card>
           <template #header>快捷入口</template>
+          <el-button type="primary" plain @click="router.push('/teacher/drill')">情境演练</el-button>
           <el-button @click="router.push('/teacher/courses/0')">建任务（选课程后）</el-button>
           <el-button @click="router.push('/teacher/courses/0')">查看汇总（S3-F3 实现）</el-button>
           <el-button @click="router.push('/dashboard')">学生工作台</el-button>
           <p class="muted">
-            任务管理/班级汇总在课程详情页；提交查看页属 S3-F3。
+            情境演练（S3-F4）：AI 扮正方学生、教师练引导；任务管理/班级汇总在课程详情页；
+            提交查看页属 S3-F3。
           </p>
         </el-card>
       </div>
